@@ -64,6 +64,36 @@
 \hbadness=5000
 \vbadness=5000
 
+% Better float management to prevent vertical overflow
+\renewcommand{\floatpagefraction}{0.8}
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.9}
+\renewcommand{\textfraction}{0.1}
+\setcounter{totalnumber}{3}
+\setcounter{topnumber}{2}
+\setcounter{bottomnumber}{2}
+
+% Better handling of underfull boxes
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
+\brokenpenalty=10000
+
+% Improve hyphenation
+\hyphenpenalty=500
+\exhyphenpenalty=500
+
+% Better justification settings
+\pretolerance=200
+\tolerance=2000
+\hbadness=1500
+\vbadness=1500
+
+% Prevent orphan lines
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
+
 % Define document metadata commands
 \newcommand{\@institution}{}
 \newcommand{\institution}[1]{\renewcommand{\@institution}{#1}}
