@@ -30,6 +30,10 @@
 \RequirePackage{caption}
 \RequirePackage{subcaption}
 
+% Micro-typography packages for better text formatting
+\RequirePackage{microtype}
+\RequirePackage{ragged2e}
+
 % Page geometry
 \geometry{
     letterpaper,
@@ -42,6 +46,23 @@
 
 % Line spacing
 \onehalfspacing
+
+% Better paragraph formatting
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+
+% Micro-typography settings
+\microtypecontext{
+    protrusion=true,
+    expansion=true,
+    tracking=true
+}
+
+% Reduce tolerance to prevent overfull boxes
+\tolerance=1000
+\emergencystretch=10pt
+\hbadness=5000
+\vbadness=5000
 
 % Define document metadata commands
 \newcommand{\@institution}{}
