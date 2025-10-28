@@ -4,6 +4,7 @@
 
 **Project Focus**: Optimizing AI-powered eye tracking systems for real-time medical monitoring and assistive technology deployment on edge computing platforms.
 
+made jr move to board; https://www.ti.com/document-viewer/lit/html/spruj70
 ---
 
 ## Executive Summary
