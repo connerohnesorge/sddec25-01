@@ -33,3 +33,7 @@ jobs:
 
       - name: Enable Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Setup Nix
+        run: |
+          nix develop
