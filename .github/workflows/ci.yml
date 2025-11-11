@@ -33,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: ChkTeX
-        uses: j2kun/chktex-action@v1
+        uses: j2kun/chktex-action@v2
       - name: Typos (reviewdog)
         uses: reviewdog/action-typos@v1
         with:
