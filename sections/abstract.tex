@@ -1,0 +1,11 @@
+\begin{abstract}
+This research presents an innovative approach to optimizing semantic segmentation algorithms for real-time eye tracking in medical assistive technology applications. The proposed system implements efficient resource scheduling to ensure fair access to the Deep Processing Unit (DPU) across multiple concurrent algorithms, eliminating the need for algorithm splitting that would otherwise increase computational overhead. Performance optimization targets a reduction from 160ms to 33.2ms per frame for simultaneous processing of 4 frames while maintaining 99.8\% Intersection over Union (IoU) accuracy. This optimization is critical for medical assistance devices serving individuals with mobility impairments, particularly those with cerebral palsy and similar conditions.
+
+The system leverages the AMD Kria KV260 development board's multi-core architecture and specialized DPU capabilities for neural network inference. Key technical innovations include deadline-aware resource scheduling, memory management optimization, and parallel processing strategies designed to maintain algorithmic accuracy while achieving 60 frames per second throughput. The architecture ensures that periodic data collection algorithms operate without interruption, preventing resource starvation that could compromise system reliability.
+
+Initial development milestones include successful establishment of the development environment, validation of existing eye tracking algorithms, and implementation of a preliminary scheduling framework. Current performance metrics demonstrate 98.8\% IoU accuracy, indicating feasibility of reaching the target specifications. Subsequent development phases focus on resource management system refinement and inter-component data flow optimization.
+
+This research directly enhances quality of life for individuals with disabilities by enabling more responsive and reliable eye-tracking interfaces. The improved processing capabilities facilitate faster detection and response to potential medical emergencies, providing caregivers and users with enhanced safety and autonomy in daily living activities.
+
+\keywords{Semantic Segmentation; Eye Tracking; Assistive Technology; Real-Time Processing; U-Net; AMD Kria KV260; DPU Scheduling; Embedded Systems; Medical Device}
+\end{abstract}
