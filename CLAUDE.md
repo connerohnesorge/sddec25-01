@@ -1,18 +1,38 @@
-<!-- OPENSPEC:START -->
-# OpenSpec Instructions
-
-These instructions are for AI assistants working in this project.
-
-Always open `@/openspec/AGENTS.md` when the request:
-- Mentions planning or proposals (words like proposal, spec, change, plan)
-- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
-- Sounds ambiguous and you need the authoritative spec before coding
-
-Use `@/openspec/AGENTS.md` to learn:
-- How to create and apply change proposals
-- Spec format and conventions
-- Project structure and guidelines
-
-Keep this managed block so 'openspec update' can refresh the instructions.
-
-<!-- OPENSPEC:END -->
+.
+├── AGENTS.md
+├── build.sh
+├── CLAUDE.md
+├── documents
+│   ├── DesignDocSemester1.pdf
+│   ├── EngineeringStandards.pdf
+│   ├── LightningTalk.pdf
+│   ├── Report1Semester1.pdf
+│   ├── Report1Semester2.pdf
+│   ├── Report2Semester1.pdf
+│   ├── Report2Semester2.pdf
+│   ├── Report3Semester1.pdf
+│   ├── Report3Semester2.pdf
+│   ├── Report4Semester1.pdf
+│   ├── Report4Semester2.pdf
+│   ├── Report5Semester1.pdf
+│   ├── Report5Semester2.pdf
+│   ├── Report6Semester1.pdf
+│   ├── Report7Semester1.pdf
+│   ├── Report8Semester1.pdf
+│   ├── TestingStrategy.pdf
+│   └── UserTestingPlan.pdf
+├── flake.lock
+├── flake.nix
+├── isusdd.cls
+├── main.tex ( <- this is the main file)
+├── README.md
+├── references.bib
+└── sections
+    ├── 01-introduction.tex
+    ├── 02-requirements.tex
+    ├── 03-project-plan.tex
+    ├── 04-design.tex
+    ├── 05-testing.tex
+    ├── 06-implementation.tex
+    ├── 07-conclusion.tex
+    └── abstract.tex
