@@ -83,7 +83,7 @@
             chktex main.tex
             chktex sections/*.tex
           '';
-          description = "Lint, Spell check and word count LaTeX document(s)";
+          description = "Lint LaTeX document(s)";
           deps = with pkgs; [
             texliveFull
           ];
@@ -139,9 +139,6 @@
             pandoc # Document conversion (Markdown ↔ LaTeX)
             ghostscript # PostScript/PDF manipulation
             poppler_utils # PDF utilities (pdfinfo, pdftotext, etc.)
-            # Make and build tools
-            hunspellDicts.en_US
-            hunspell
             watchexec # File watcher alternative to latexmk -pvc
           ]
           ++ builtins.attrValues scriptPackages
