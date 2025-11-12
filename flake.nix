@@ -6,6 +6,13 @@
     flake-utils.url = "github:numtide/flake-utils";
     treefmt-nix.url = "github:numtide/treefmt-nix";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
+    git-hooks.url = "github:cachix/git-hooks.nix";
+    git-hooks.inputs.nixpkgs.follows = "nixpkgs";
+    # Used for shell.nix
+    flake-compat = {
+      url = "github:edolstra/flake-compat";
+      flake = false;
+    };
   };
 
   outputs = {
@@ -13,6 +20,7 @@
     nixpkgs,
     flake-utils,
     treefmt-nix,
+    git-hooks,
     ...
   }:
     flake-utils.lib.eachDefaultSystem (system: let
@@ -109,6 +117,13 @@
           alejandra.enable = true; # Nix formatter
         };
       };
+
+      preCommitCheck = git-hooks.lib.${system}.run {
+        src = ./.;
+        hooks = {
+          chktex.enable = true;
+        };
+      };
     in {
       devShells.default = pkgs.mkShell {
         name = "latex-dev";
@@ -136,13 +151,16 @@
             # Make and build tools
             watchexec # File watcher alternative to latexmk -pvc
           ]
-          ++ builtins.attrValues scriptPackages;
+          ++ builtins.attrValues scriptPackages
+          ++ preCommitCheck.enabledPackages;
 
-        shellHook = ''
+        shellHook = preCommitCheck.shellHook + ''
           echo "🎓 LaTeX Development Environment 🎓"
         '';
       };
 
       formatter = treefmt-nix.lib.mkWrapper pkgs treefmtModule;
+
+      checks.pre-commit-check = preCommitCheck;
     });
 }

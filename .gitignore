@@ -48,7 +48,8 @@ logs
 *.xdy
 *.xml
 *blx.bib
-.bak 
+.bak
 .mtc
 build/
 *.pdf
+/.pre-commit-config.yaml

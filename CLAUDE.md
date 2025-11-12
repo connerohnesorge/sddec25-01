@@ -21,7 +21,7 @@
 │   ├── Report8Semester1.pdf
 │   ├── TestingStrategy.pdf
 │   └── UserTestingPlan.pdf
-├── flake.lock
+├── VERSION ( <- version of the project automatically updated DO NOT EDIT)
 ├── flake.nix
 ├── isusdd.cls
 ├── main.tex ( <- this is the main file)
@@ -36,6 +36,7 @@
     ├── 06-implementation.tex
     ├── 07-conclusion.tex
     └── abstract.tex
+
 # Project Context
 
 ## Purpose
@@ -662,9 +663,3 @@ This project adheres to IEEE standards for AI-based medical devices:
 - **Service Outages**: Local Git repositories, offline development capability
 - **Version Conflicts**: Nix ensures reproducible environments
 - **Documentation Loss**: Regular commits, GitHub backups
-
----
-
-*Last Updated*: 2025-11-11
-*Document Version*: 1.0
-*Maintained By*: VisionAssist Team (SDDEC25-01)
