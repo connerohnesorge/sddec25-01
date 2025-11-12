@@ -96,3 +96,16 @@ jobs:
             --title "Version ${{ steps.bump_version.outputs.NEW_VERSION }}" \
             --notes-file release_notes.md \
             "sddec25-01-v${{ steps.bump_version.outputs.NEW_VERSION }}.pdf#Senior Design Document v${{ steps.bump_version.outputs.NEW_VERSION }}"
+
+      - name: Release summary
+        run: |
+          echo "=============================="
+          echo "🚀 Release Summary"
+          echo "------------------------------"
+          echo "Version: v${{ steps.bump_version.outputs.NEW_VERSION }}"
+          echo "PDF Filename: sddec25-01-v${{ steps.bump_version.outputs.NEW_VERSION }}.pdf"
+          echo "Git Tag: v${{ steps.bump_version.outputs.NEW_VERSION }}"
+          echo "Changelog Preview:"
+          echo "------------------------------"
+          head -20 changelog.txt || cat changelog.txt
+          echo "=============================="
