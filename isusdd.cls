@@ -102,9 +102,6 @@
 \newcommand{\@department}{}
 \newcommand{\department}[1]{\renewcommand{\@department}{#1}}
 
-\newcommand{\@course}{}
-\newcommand{\course}[1]{\renewcommand{\@course}{#1}}
-
 \newcommand{\@semester}{}
 \newcommand{\semester}[1]{\renewcommand{\@semester}{#1}}
 
