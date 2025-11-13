@@ -72,6 +72,9 @@ jobs:
           fi
  
           NEW_VERSION="$NEW_MAJOR.$NEW_MINOR.$NEW_PATCH"
+          # Export NEW_VERSION to GITHUB_OUTPUT for use in later steps
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
           # Update VERSION file
           echo "$NEW_VERSION" > VERSION
 
