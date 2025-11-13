@@ -258,7 +258,7 @@ Our implementation follows the threading model defined in Section~\ref{design:th
 
 \begin{itemize}
 \item \textbf{POSIX Threading}: Utilizes POSIX threads (pthreads) for multi-core ARM processing on the Kria KV260
-\item \textbf{Performance Impact}: Thread synchronization overhead measured at 48.2\% latency increase in split model approach (see Section~\ref{subsec:performance-metrics}), demonstrating the importance of minimizing inter-thread coordination
+\item \textbf{Performance Impact}: Thread synchronization overhead measured at 48.2\% latency increase in split model approach (see Section~\ref{subsec:performance-analysis}), demonstrating the importance of minimizing inter-thread coordination
 \item \textbf{Pipeline Implementation}: Each pipeline stage runs in a dedicated thread with synchronization points between stages to ensure data consistency
 \item \textbf{Resource Contention}: Higher variance in split model timings (±3.38ms vs ±0.05ms) indicates synchronization overhead and resource contention between parallel threads
 \end{itemize}
