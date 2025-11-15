@@ -1,0 +1,59 @@
+name: PR PDF Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  build-pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compile LaTeX document
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: main.tex
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        id: upload-artifact
+        with:
+          name: pr-${{ github.event.pull_request.number }}-pdf
+          path: main.pdf
+          retention-days: 30
+
+      - name: Get artifact URL
+        id: artifact-url
+        run: |
+          ARTIFACT_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "url=${ARTIFACT_URL}" >> $GITHUB_OUTPUT
+
+      - name: Comment on PR with PDF link
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: pdf-preview
+          message: |
+            ## 📄 PDF Preview Ready!
+
+            The LaTeX document has been compiled successfully.
+
+            **Download the PDF:** [Click here to download](${{ steps.artifact-url.outputs.url }})
+
+            > **Note:** Click the link above to go to the workflow run, then scroll down to the "Artifacts" section to download the PDF.
+
+            ---
+
+            <details>
+            <summary>Build Details</summary>
+
+            - **Commit:** ${{ github.event.pull_request.head.sha }}
+            - **Workflow Run:** [#${{ github.run_number }}](${{ steps.artifact-url.outputs.url }})
+            - **Compiled:** `main.tex` → `main.pdf`
+
+            </details>
