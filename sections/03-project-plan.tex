@@ -7,7 +7,7 @@ Our team adopted a hybrid Waterfall + Agile project management approach for this
 \begin{enumerate}
 \item The semantic segmentation optimization had clearly defined phases (pipeline architecture design, implementation, testing) that benefited from Waterfall planning
 \item The technical nature of implementing pipelined processing, DPU scheduling, and optimizing algorithms required adaptive iterations that benefited from Agile sprints
-\item Working with specialized hardware (Kria Board KV260) required careful planning of resource allocation and sequential DPU access scheduling
+\item Working with specialized hardware (AMD Kria KV260 board) required careful planning of resource allocation and sequential DPU access scheduling
 \end{enumerate}
 
 For project tracking, the team utilized the following tools:
@@ -22,7 +22,7 @@ Weekly team meetings were held to review sprint progress, address blockers, and 
 
 \section{Task Decomposition}\label{sec:task-decomposition}
 
-Our project involved optimizing the semantic segmentation U-Net algorithm by implementing a pipelined architecture that leveraged multi-threaded CPU processing alongside sequential DPU execution\@. The key objective was to achieve target throughput of 60 FPS for real-time medical monitoring. The following tasks and subtasks were identified:
+Our project involved optimizing the semantic segmentation U-Net algorithm by implementing a pipelined architecture that leveraged multithreaded CPU processing alongside sequential DPU execution\@. The key objective was to achieve target throughput of 60 FPS for real-time medical monitoring. The following tasks and subtasks were identified:
 
 \subsection{Task 1: Algorithm Performance Optimization}
 \begin{itemize}
@@ -33,8 +33,8 @@ Our project involved optimizing the semantic segmentation U-Net algorithm by imp
 
 \subsection{Task 2: Implementation of Core Components}
 \begin{itemize}
-\item Subtask 2.1: Implement image pre-processing using semantic segmentation
-\item Subtask 2.2: Implement eye tracking algorithm with pre-processed images
+\item Subtask 2.1: Implement image preprocessing using semantic segmentation
+\item Subtask 2.2: Implement eye tracking algorithm with preprocessed images
 \item Subtask 2.3: Implement blink detection algorithm
 \item Subtask 2.4: Implement DPU sharing mechanism for resource optimization
 \end{itemize}
@@ -94,7 +94,7 @@ The following key milestones were identified for the project, along with their a
 \subsection{Milestone 3: Thread Testing with Matrix Operations}
 \begin{itemize}
 \item \textbf{Completion Date}: Week 16
-\item \textbf{Metrics}: Successful multi-threaded operation for CPU-based preprocessing and postprocessing
+\item \textbf{Metrics}: Successful multithreaded operation for CPU-based preprocessing and postprocessing
 \item \textbf{Evaluation Criteria}: All CPU threads operate correctly with proper synchronization and without memory conflicts
 \end{itemize}
 
