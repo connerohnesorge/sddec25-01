@@ -1,0 +1,842 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      content="IE=edge,chrome=1"
+      http-equiv="X-UA-Compatible"
+    />
+    <meta
+      content="width=device-width, initial-scale=1.0, maximum-scale=5.0"
+      name="viewport"
+    />
+    <meta
+      content="telephone=no"
+      name="format-detection"
+    />
+    <meta
+      name="description"
+      content="Iowa State University Senior Design Team sddec25-01 - Machine Learning: Semantic Segmentation Optimization for Eye Tracking in Assistive Technology. Improving accessibility through parallel processing U-Net algorithms."
+    />
+    <meta
+      name="keywords"
+      content="semantic segmentation, machine learning, eye tracking, assistive technology, U-Net, Iowa State, ECE, senior design, neural network optimization"
+    />
+    <meta
+      name="author"
+      content="Team sddec25-01"
+    />
+
+    <meta
+      property="og:title"
+      content="Machine Learning: Semantic Segmentation Optimization"
+    />
+    <meta
+      property="og:description"
+      content="Iowa State University Senior Design project optimizing eye tracking for assistive technology using parallel U-Net processing."
+    />
+    <meta
+      property="og:image"
+      content="high-level-diagram.png"
+    />
+    <meta
+      property="og:url"
+      content="https://sddec25-01.sd.ece.iastate.edu"
+    />
+    <meta
+      property="og:type"
+      content="website"
+    />
+
+    <meta
+      name="twitter:card"
+      content="summary_large_image"
+    />
+    <meta
+      name="twitter:title"
+      content="Machine Learning: Semantic Segmentation Optimization"
+    />
+    <meta
+      name="twitter:description"
+      content="Iowa State University Senior Design project optimizing eye tracking for assistive technology using parallel U-Net processing."
+    />
+    <meta
+      name="twitter:image"
+      content="high-level-diagram.png"
+    />
+
+    <title>sddec25-01 • Machine Learning: Semantic Segmentation Optimization</title>
+
+    <link
+      rel="preconnect"
+      href="https://cdn.theme.iastate.edu"
+    />
+    <link
+      rel="preconnect"
+      href="https://code.jquery.com"
+    />
+
+    <link
+      href="https://cdn.theme.iastate.edu/nimbus-sans/css/nimbus-sans.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.theme.iastate.edu/merriweather/css/merriweather.css"
+      rel="stylesheet"
+    />
+    <link
+      href="css/iastate.min.css?v=2.0.16"
+      rel="stylesheet"
+    />
+    <link
+      href="css/site.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdn.theme.iastate.edu/favicon/favicon.ico"
+      rel="icon"
+      type="image/x-icon"
+    />
+    <link
+      href="https://cdn.theme.iastate.edu/favicon/favicon.png"
+      rel="icon"
+      type=""
+    />
+    <link
+      href="https://cdn.theme.iastate.edu/favicon/apple-touch-icon.png"
+      rel="icon"
+    />
+    <script src="https://cdn.theme.iastate.edu/fontawesome/5.0/js/all.min.js"></script>
+  </head>
+
+  <body>
+    <a
+      href="#main-content"
+      class="skip-to-content sr-only sr-only-focusable"
+    >
+      Skip to main content
+    </a>
+
+    <header>
+      <nav
+        class="navbar-site"
+        aria-label="Site navigation"
+      >
+        <div class="container">
+          <div class="navbar-site-wordmark">
+            <a
+              href="/"
+              title="Home"
+              class="wordmark-unit"
+            >
+              <span class="wordmark-isu">Iowa State University</span>
+              <span class="wordmark-unit-title">Senior Design Team sddec25-01</span>
+              <span class="wordmark-unit-title">Machine Learning: Semantic Segmentation Optimization</span>
+            </a>
+          </div>
+
+          <div class="navbar-header visible-xs visible-sm">
+            <button
+              id="navbar-menu-button"
+              type="button"
+              class="navbar-toggle navbar-toggle-left collapsed"
+              data-toggle="collapse"
+              data-target="#navbar-menu-collapse, #navbar-site-links-collapse"
+              aria-expanded="false"
+              aria-label="Toggle navigation menu"
+            >
+              <span class="navbar-toggle-icon menu-icon">
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+              </span>
+              <span class="navbar-toggle-label">
+                Menu
+                <span class="sr-only">Toggle</span>
+              </span>
+            </button>
+          </div>
+
+          <div
+            class="navbar-site-info collapse navbar-collapse navbar-caps"
+            id="navbar-site-links-collapse"
+          >
+            <ul class="nav navbar-nav navbar-right">
+              <li>
+                <a href="http://ece.iastate.edu">ECpE @ ISU</a>
+              </li>
+              <li>
+                <a href="http://seniord.ece.iastate.edu">ECpE Senior Design</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <div id="navs">
+      <div class="navbar-menu-wrapper">
+        <nav
+          class="navbar navbar-menu navbar-default navbar-static-top no-border navbar-caps navbar-menu-affix"
+          role="navigation"
+          aria-label="Main navigation"
+        >
+          <div class="container">
+            <div
+              class="collapse navbar-collapse"
+              id="navbar-menu-collapse"
+            >
+              <ul class="nav navbar-nav">
+                <li>
+                  <a href="#">
+                    <i
+                      class="fas fa-home"
+                      aria-hidden="true"
+                    ></i>
+                    <span class="sr-only">Home</span>
+                  </a>
+                </li>
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#teammembers">Team</a></li>
+                <li><a href="#timeline">Timeline</a></li>
+                <li><a href="#weeklyreports">Weekly Reports</a></li>
+                <li><a href="#designdocuments">Design Documents</a></li>
+                <li><a href="#lightning-talks">Talks</a></li>
+                <li><a href="#engineering-standards">Standards</a></li>
+                <li><a href="#testing">Testing</a></li>
+              </ul>
+            </div>
+          </div>
+        </nav>
+      </div>
+    </div>
+
+    <div id="post-nav"></div>
+
+    <main
+      role="main"
+      id="main-content"
+    >
+      <div
+        class="container"
+        style="width: 90%"
+      >
+        <section
+          class="row"
+          id="overview"
+        >
+          <div class="col-xs-12">
+            <h2>Project Overview</h2>
+            <div class="row">
+              <article class="col-md-8">
+                <p>
+                  Our Machine Learning: Semantic Segmentation Optimization project focuses on optimizing semantic
+                  segmentation algorithms for eye tracking in assistive technology applications. We aim to improve the
+                  performance of these algorithms for individuals with mobility disabilities, particularly those with
+                  conditions like cerebral palsy.
+                </p>
+                <p>
+                  By pipelining a U-Net neural network algorithm into four equal parts that can run concurrently while
+                  maintaining accuracy, we aim to increase processing speed from 160 ms per frame to 33.2ms per frame
+                  for 4 frames simultaneously. This will increase throughput and maintain our required 99.8% IoU
+                  accuracy while achieving a target processing speed of 60 frames per second.
+                </p>
+                <p>Key innovations in our approach include:</p>
+                <ul>
+                  <li>Parallel processing of the U-Net semantic segmentation algorithm</li>
+                  <li>Efficient memory allocation and thread synchronization</li>
+                  <li>
+                    Optimization for the
+                    <a href="https://www.amd.com/en/products/system-on-modules/kria/k26/kv260-vision-starter-kit.html">
+                      AMD Kria KV260
+                    </a>
+                    development board
+                  </li>
+                  <li>Strategic DPU (Deep Processing Unit) resource sharing</li>
+                  <li>Onnx Model Decomposition</li>
+    		  <li>Propitiatory Machine Learning Models</li>
+                  <li>Kernel Scheduling Optimization</li>
+                  <li>AMD Development Tools: Petalinux Tools, Vitis AI, Vitis AI Model Optimizer</li>
+                  <li>Docker Development Environment</li>
+                </ul>
+              </article>
+              <aside class="col-md-4">
+                <img
+                  src="high-level-diagram.png"
+                  alt="High-level architecture diagram showing the semantic segmentation optimization pipeline with U-Net neural network divided into parallel processing units"
+                  class="img-responsive"
+                  style="width: 100%; height: auto"
+                />
+              </aside>
+              <div
+                class="row"
+                style="margin-top: 20px; margin-bottom: 20px"
+              >
+                <div
+                  class="col-md-6"
+                  style="padding: 15px"
+                >
+                  <img
+                    src="kv260.webp"
+                    alt="AMD Kria KV260 development board"
+                    class="img-responsive"
+                    style="width: 100em; height: auto"
+                  />
+                </div>
+                <div
+                  class="col-md-6"
+                  style="padding: 15px"
+                >
+                  <img
+                    src="unet.webp"
+                    alt="AMD Kria KV260 development board"
+                    class="img-responsive"
+                    style="width: 100em; height: auto;"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+<section class="row" id="teammembers">
+  <div class="col-xs-12">
+    <div class="section-title mb-5">
+      <h2>Team Members</h2>
+    </div>
+  </div>
+
+  <div class="row">
+    <!-- Team Member 1 -->
+    <div class="col-lg-3 col-md-6 col-sm-6 mb-4">
+      <div class="team text-center rounded p-3">
+        <div class="position-relative">
+          <img src="./tyler.webp" class="img-fluid rounded-circle" alt="Profile photo of Tyler Schaefer">
+          <div class="overlay rounded-circle bg-dark"></div>
+        </div>
+        <div class="content mt-3">
+          <h4 class="title mb-0">Tyler Schaefer</h4>
+          <small class="text-muted member-position">ML Algorithm Analyst</small>
+          <p class="text-muted mt-3">
+            Specializes in algorithm optimization and mathematical validation for ML models. Focuses on maintaining accuracy during the optimization and model splitting process.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Team Member 2 -->
+    <div class="col-lg-3 col-md-6 col-sm-6 mb-4">
+      <div class="team text-center rounded p-3">
+        <div class="position-relative">
+          <img src="./conner.webp" class="img-fluid rounded-circle" alt="Profile photo of Conner Ohnesorge">
+          <div class="overlay rounded-circle bg-dark"></div>
+        </div>
+        <div class="content mt-3">
+          <h4 class="title mb-0">Conner Ohnesorge</h4>
+          <small class="text-muted member-position">ML Integration HWE</small>
+          <p class="text-muted mt-3">
+            Specializes in hardware optimization for ML models with experience in FPGA implementation. Also serves as the development environment manager.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Team Member 3 -->
+    <div class="col-lg-3 col-md-6 col-sm-6 mb-4">
+      <div class="team text-center rounded p-3">
+        <div class="position-relative">
+          <img src="./aidan.webp" class="img-fluid rounded-circle" alt="Profile photo of Aidan Perry">
+          <div class="overlay rounded-circle bg-dark"></div>
+        </div>
+        <div class="content mt-3">
+          <h4 class="title mb-0">Aidan Perry</h4>
+          <small class="text-muted member-position">Multithreaded Program Developer</small>
+          <p class="text-muted mt-3">
+            Leads threading implementation and synchronization for parallel processing. Experienced in real-time systems and FPGA programming.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Team Member 4 -->
+    <div class="col-lg-3 col-md-6 col-sm-6 mb-4">
+      <div class="team text-center rounded p-3">
+        <div class="position-relative">
+          <img src="./joey.webp" class="img-fluid rounded-circle" alt="Profile photo of Joey Metzen">
+          <div class="overlay rounded-circle bg-dark"></div>
+        </div>
+        <div class="content mt-3">
+          <h4 class="title mb-0">Joey Metzen</h4>
+          <small class="text-muted member-position">Kria Board Manager</small>
+          <p class="text-muted mt-3">
+            Responsible for hardware management and memory optimization. Leads testing and benchmarking efforts for the system.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+        <section
+          class="row"
+          id="timeline"
+        >
+          <div class="col-xs-12">
+            <h2>Project Timeline</h2>
+            <div class="timeline">
+              <div class="timeline-container left">
+                <div class="timeline-content">
+                  <h3>Project Initialization</h3>
+                  <p>Jan 2025 - Feb 2025</p>
+                  <ul>
+                    <li>Team formation</li>
+                    <li>Problem definition</li>
+                    <li>Initial research</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="timeline-container right">
+                <div class="timeline-content">
+                  <h3>Design Phase</h3>
+                  <p>Mar 2025 - Apr 2025</p>
+                  <ul>
+                    <li>Architecture planning</li>
+                    <li>Algorithm selection</li>
+                    <li>Hardware requirements analysis</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="timeline-container left">
+                <div class="timeline-content">
+                  <h3>Implementation</h3>
+                  <p>May 2025 - Aug 2025</p>
+                  <ul>
+                    <li>Mathematical division of U-Net</li>
+                    <li>Thread management system</li>
+                    <li>Memory allocation strategy</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="timeline-container right">
+                <div class="timeline-content">
+                  <h3>Testing & Validation</h3>
+                  <p>Sep 2025 - Oct 2025</p>
+                  <ul>
+                    <li>Comprehensive testing</li>
+                    <li>Performance benchmarking</li>
+                    <li>Accuracy validation</li>
+                  </ul>
+                </div>
+              </div>
+              <div class="timeline-container left">
+                <div class="timeline-content">
+                  <h3>Final Delivery</h3>
+                  <p>Nov 2025 - Dec 2025</p>
+                  <ul>
+                    <li>System refinement</li>
+                    <li>Documentation completion</li>
+                    <li>Final presentation & handover</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div
+          class="row"
+          id="documents-sections"
+        >
+          <div class="col-xs-12">
+            <h2 class="section-title">Project Documentation</h2>
+            <div class="documents-container">
+              <!-- Left column: Document links -->
+              <div class="documents-links">
+                <section id="weeklyreports">
+                  <h2>Weekly Reports</h2>
+                  <div
+                    class="pdf-link-container"
+                    data-pdf-url="Weekly-Report-1.pdf"
+                  >
+                    <a
+                      href="Weekly-Report-1.pdf"
+                      class="pdf-link"
+                    >
+                      Weekly Report 1
+                    </a>
+                    <span class="pdf-indicator">[PDF]</span>
+                  </div>
+                  <p class="document-summary">
+                    Conducted client meetings and preliminary research, but remained in a holding pattern waiting for
+                    NDAs, hardware, and codebase access.
+                  </p>
+
+                  <div
+                    class="pdf-link-container"
+                    data-pdf-url="Weekly-Report-2.pdf"
+                  >
+                    <a
+                      href="Weekly-Report-2.pdf"
+                      class="pdf-link"
+                    >
+                      Weekly Report 2
+                    </a>
+                    <span class="pdf-indicator">[PDF]</span>
+                  </div>
+                  <p class="document-summary">
+                    Onboarded into specialized project areas with Joseph studying Kria board specifications and memory
+                    optimization, Tyler meeting with the ISU team and familiarizing himself with ONNX files, Conner
+                    establishing communications with Oregon State and setting up Dev environments, and Aidan focusing on
+                    the multi-threading implementation in the C++ codebase for image processing optimization.
+                  </p>
+
+                  <div
+                    class="pdf-link-container"
+                    data-pdf-url="Weekly-Report-3.pdf"
+                  >
+                    <a
+                      href="Weekly-Report-3.pdf"
+                      class="pdf-link"
+                    >
+                      Weekly Report 3
+                    </a>
+                    <span class="pdf-indicator">[PDF]</span>
+                  </div>
+                  <p class="document-summary">
+                    Deepened our understanding of the codebase through comments, diagrams, and meetings with former team
+                    members. Joseph researched Kria Board components for our assignment, created a slide deck, and
+                    explored Xilinx Vitis, while Tyler met with Mason Inman and our client to discuss algorithm
+                    environment setup and quantization needs. Conner built the Petalinux OS, wrote nix derivations for
+                    multithreaded builds, created a data version control presentation, and gave a lightning talk on
+                    U-Net architecture. Aidan connected with last semester's multithreaded programming developer,
+                    reviewed previous presentations, and tested matrix implementations to better understand the
+                    algorithm.
+                  </p>
+
+                  <div
+                    class="pdf-link-container"
+                    data-pdf-url="Weekly-Report-4.pdf"
+                  >
+                    <a
+                      href="Weekly-Report-4.pdf"
+                      class="pdf-link"
+                    >
+                      Weekly Report 4
+                    </a>
+                    <span class="pdf-indicator">[PDF]</span>
+                  </div>
+                  <p class="document-summary">
+                    Transition from theoretical learning to hands-on experimentation. Joseph finalized component
+                    selections for the project and studied data flow through the Kria Board. Tyler successfully
+                    configured the Vitis-AI docker container and trained the existing model to demonstrate proper
+                    environment setup to the client. Conner created a test application that split a PyTorch segmentation
+                    model into separate encoder and decoder ONNX models, noting decreased latency but increased
+                    throughput for multicore processing. Aidan continued collaboration with the previous codebase owner
+                    while developing matrix equations for the multithreaded pipeline and becoming familiar with the
+                    `cv::mat` class.
+                  </p>
+
+                  <div
+                    class="pdf-link-container"
+                    data-pdf-url="Weekly-Report-5.pdf"
+                  >
+                    <a
+                      href="Weekly-Report-5.pdf"
+                      class="pdf-link"
+                    >
+                      Weekly Report 5
+                    </a>
+                    <span class="pdf-indicator">[PDF]</span>
+                  </div>
+                  <p class="document-summary">
+                    Making progress on software installations for properly running and visualizing the Kria board
+                    operations. Tyler researched optimization techniques specifically for U-Nets and CNNs on embedded
+                    systems. Conner fixed and improved the broken Docker development environment, making it more
+                    configurable, testing it across multiple platforms with GitHub Actions, and submitted PRs for both
+                    this fix and a slide deck presenting his data version control system proposal. Aidan formulated test
+                    equations for the multi-threading system and consulted with the previous codebase owner to validate
+                    his approach.
+                  </p>
+
+                  <div
+                    class="pdf-link-container"
+                    data-pdf-url="Weekly-Report-6.pdf"
+                  >
+                    <a
+                      href="Weekly-Report-6.pdf"
+                      class="pdf-link"
+                    >
+                      Weekly Report 6
+                    </a>
+                    <span class="pdf-indicator">[PDF]</span>
+                  </div>
+                  <p class="document-summary">
+                    Further optimizing the Kria board while advancing research on model splitting to improve
+                    computational efficiency. Joseph studied memory flow optimization for the Kria board. Tyler
+                    continued researching computational complexity and began creating a slide deck to propose a
+                    strategic model split. Aidan continued research on the `cv::mat` class, re-theorized the algorithm
+                    input structure, and held one-on-one meetings with both the client and past developers. Planning
+                    initializing benchmark testing of the old code, presenting the proposed model division to the
+                    client, testing the custom Petalinux images with previous code, and developing a test input in
+                    `cv::mat` format to identify flaws in the current system.
+                  </p>
+
+                  <div
+                    class="pdf-link-container"
+                    data-pdf-url="Weekly-Report-7.pdf"
+                  >
+                    <a
+                      href="Weekly-Report-7.pdf"
+                      class="pdf-link"
+                    >
+                      Weekly Report 7
+                    </a>
+                    <span class="pdf-indicator">[PDF]</span>
+                  </div>
+                  <p class="document-summary">
+                    Benchmarking and technical documentation while preparing for future implementation. Joseph worked
+                    with Conner to benchmark memory performance on the Kria board, specifically measuring data transfer
+                    rates between L1/L2 caches and RAM while exploring optimization strategies producing an 36-page
+                    memory benchmark documentation with approximately 12 graphs, complete with code examples (using
+                    Python for plotting, C for benchmarking, and Markdown for documentation). Tyler completed his
+                    computational complexity analysis and prepared a presentation for both the team and client to
+                    propose his algorithm division approach. Aidan reached out to a professor for expert consultation on
+                    optimal data structures for our implementation while continuing his theoretical work on designing
+                    inputs for thread testing and visualization.
+                  </p>
+
+                  <div
+                    class="pdf-link-container"
+                    data-pdf-url="Weekly-Report-8.pdf"
+                  >
+                    <a
+                      href="Weekly-Report-8.pdf"
+                      class="pdf-link"
+                    >
+                      Weekly Report 8
+                    </a>
+                    <span class="pdf-indicator">[PDF]</span>
+                  </div>
+                  <p class="document-summary">
+                    Moved from evaluation to implementation as we transitioned to the next phase of the project. Joseph
+                    continued RAM benchmarking and testing on the Kria Board to further optimize performance. Tyler
+                    presented his research findings to both the team and client, gaining approval to begin coding the
+                    model division that forms the core of our optimized implementation. Conner documented benchmark
+                    results for RAM and on-chip memory in the main repository, complete with code used to generate and
+                    graph these findings, and has begun more focused testing on ONNX model -> x-model inference for our
+                    U-Net model. Aidan scheduled a one-on-one meeting with an advisor, continuing his research on
+                    cv::mat implementation within the codebase while developing a better understanding of board
+                    operations.
+                  </p>
+                </section>
+
+                <section id="designdocuments">
+                  <h2>Design Documents</h2>
+                  <div
+                    class="pdf-link-container"
+                    data-pdf-url="design-doc-1.pdf"
+                  >
+                    <a
+                      href="design-doc.pdf"
+                      class="pdf-link"
+                    >
+                      Design Doc: Semantic Segmentation Optimization
+                    </a>
+                    <span class="pdf-indicator">[PDF]</span>
+                  </div>
+                  <p class="document-summary">
+                    This document outlines the design specifications for our eye tracking semantic segmentation
+                    optimization project. It includes the mathematical approach to dividing the U-Net algorithm, memory
+                    allocation strategies, thread synchronization mechanisms, and hardware configurations for the
+                    <a href="https://www.amd.com/en/products/system-on-modules/kria/k26/kv260-vision-starter-kit.html">
+                      AMD Kria KV260
+                    </a>
+                    development board platform.
+                  </p>
+                </section>
+
+                <section id="lightning-talks">
+                  <h2>Lightning Talks</h2>
+                  <div
+                    class="pdf-link-container"
+                    data-pdf-url="lightning-talk-1.pdf"
+                  >
+                    <a
+                      href="lightning-talk-1.pdf"
+                      class="pdf-link"
+                    >
+                      Lightning Talk 1: Project Overview
+                    </a>
+                    <span class="pdf-indicator">[PDF]</span>
+                  </div>
+                  <p class="document-summary">
+                    A presentation covering our project's objectives, technical approach, and preliminary results for
+                    optimizing semantic segmentation for eye tracking applications on resource-constrained hardware.
+                  </p>
+                </section>
+
+                <section id="engineering-standards">
+                  <h2>Engineering Standards</h2>
+                  <div
+                    class="pdf-link-container"
+                    data-pdf-url="engineering-standards.pdf"
+                  >
+                    <a
+                      href="engineering-standards.pdf"
+                      class="pdf-link"
+                    >
+                      Engineering Standards
+                    </a>
+                    <span class="pdf-indicator">[PDF]</span>
+                  </div>
+                  <p class="document-summary">
+                    Documentation of the engineering standards used in our project, including IEEE standards for
+                    AI-based image recognition (IEEE 3129-2023), medical device performance evaluation (IEEE 2802-2022),
+                    and data privacy (IEEE 7002-2022).
+                  </p>
+                </section>
+
+                <section id="testing">
+                  <h2>Testing</h2>
+                  <div
+                    class="pdf-link-container"
+                    data-pdf-url="testing-strategy.pdf"
+                  >
+                    <a
+                      href="testing-strategy.pdf"
+                      class="pdf-link"
+                    >
+                      Testing Strategy
+                    </a>
+                    <span class="pdf-indicator">[PDF]</span>
+                  </div>
+                  <p class="document-summary">
+                    Comprehensive testing strategy document outlining our approach for validating the semantic
+                    segmentation optimization, including unit testing, integration testing, system testing, and
+                    performance benchmarking.
+                  </p>
+
+                  <div
+                    class="pdf-link-container"
+                    data-pdf-url="user-testing-plan.pdf"
+                  >
+                    <a
+                      href="./user-testing-plan.pdf"
+                      class="pdf-link"
+                    >
+                      User Testing
+                    </a>
+                    <span class="pdf-indicator">[PDF]</span>
+                  </div>
+                  <p class="document-summary">
+                    User testing plan document outlining the testing procedures and metrics for ensuring the quality of
+                    the provided product to users.
+                  </p>
+                </section>
+              </div>
+
+              <!-- Right column: Sticky PDF preview -->
+              <div class="sticky-preview-container">
+                <div
+                  class="sticky-preview"
+                  id="sticky-pdf-preview"
+                >
+                  <div class="sticky-preview-placeholder">
+                    <i class="fas fa-file-pdf"></i>
+                    <p>Hover over a PDF link to preview</p>
+                  </div>
+                  <iframe
+                    id="sticky-pdf-iframe"
+                    title="PDF Preview"
+                    src=""
+                  ></iframe>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <a
+      href="#"
+      class="back-to-top"
+      aria-label="Back to top"
+    >
+      <i
+        class="fas fa-arrow-up"
+        aria-hidden="true"
+      ></i>
+    </a>
+
+    <footer>
+      <div class="container">
+        <div class="footer-content">
+          <div class="footer-section">
+            <h4>Contact Information</h4>
+            <p>
+              <i
+                class="fas fa-envelope"
+                aria-hidden="true"
+              ></i>
+              Email:
+              <a href="mailto:sddec25-01@iastate.edu">sddec25-01@iastate.edu</a>
+            </p>
+            <p>
+              <i
+                class="fas fa-map-marker-alt"
+                aria-hidden="true"
+              ></i>
+              Location: Coover Hall, Iowa State University
+            </p>
+            <p>
+              <i
+                class="fas fa-user"
+                aria-hidden="true"
+              ></i>
+              Faculty Advisor: Dr. Namrata Vaswani
+            </p>
+            <p>
+              <i
+                class="fas fa-user"
+                aria-hidden="true"
+              ></i>
+              Client: JR Spidell
+            </p>
+          </div>
+          <div class="footer-section">
+            <h4>Quick Links</h4>
+            <p><a href="https://www.ece.iastate.edu/">Department of Electrical and Computer Engineering</a></p>
+            <p><a href="https://www.iastate.edu/">Iowa State University</a></p>
+            <p><a href="https://www.engineering.iastate.edu/">College of Engineering</a></p>
+            <p><a href="http://sddec25-01.sd.ece.iastate.edu">Team Website</a></p>
+          </div>
+          <div class="footer-section">
+            <h4>Project Resources</h4>
+            <p><a href="documentation.zip">Download All Documentation</a></p>
+            <p><a href="#overview">Project Overview</a></p>
+            <p><a href="#designdocuments">Design Documents</a></p>
+          </div>
+        </div>
+        <div
+          class="text-center"
+          style="margin-top: 20px"
+        >
+          <p>&copy; 2025-2026 Senior Design Team sddec25-01. All Rights Reserved.</p>
+        </div>
+      </div>
+    </footer>
+
+    <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+    <script src="js/vendor/bootstrap.min.js"></script>
+    <script src="js/vendor/bootstrap-submenu.min.js"></script>
+    <script
+      defer
+      src="js/iastate.js"
+    ></script>
+    <script
+      defer
+      src="js/custom.js"
+    ></script>
+  </body>
+</html>
