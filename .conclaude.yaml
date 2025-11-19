@@ -13,6 +13,11 @@ stop:
       showStderr: true
       message: "Spectr validation failed - please fix errors before continuing"
       maxOutputLines: 100
+    - run: "nix develop -c lint"
+      showStdout: true
+      showStderr: true
+      message: "Linting (nix develop -c lint) failed - please fix errors/warnings before continuing"
+      maxOutputLines: 100
   # Examples:
   # commands:
   #   - run: "echo 'Starting build...'"

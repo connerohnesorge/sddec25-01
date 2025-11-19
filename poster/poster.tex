@@ -1,0 +1,87 @@
+% VisionAssist Senior Design Poster
+% Iowa State University SDDEC25-01
+% A0 Portrait Format Poster
+
+\documentclass[25pt, a0paper, portrait]{tikzposter}
+
+% Essential packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{microtype}
+\usepackage{booktabs}
+
+% Bibliography setup - using relative path to main project references
+\usepackage[backend=biber, style=ieee, sorting=none]{biblatex}
+\addbibresource{../references.bib}
+
+% Load poster theme configuration
+\input{poster-config.tex}
+
+% Document metadata
+\title{\parbox{\linewidth}{\centering VisionAssist:\\Real-Time AI Eye
+Tracking for Medical Assistive Technology}}
+\author{Iowa State University Senior Design Team SDDEC25--01}
+\institute{Department of Computer Engineering}
+
+% Adjust title styling for readability
+\settitle{
+  \centering
+  \vbox{
+    \centering
+    \@titlegraphic \\[\TP@titlegraphictotitledistance]
+    \color{titlefgcolor}
+    {\bfseries \Huge \@title \par}
+    \vspace*{1em}
+    {\huge \@author \par}
+    \vspace*{0.5em}
+    {\Large \@institute}
+  }
+}
+
+\begin{document}
+
+\maketitle
+
+% Two-column layout for better content organization
+\begin{columns}
+  \column{0.5}
+
+  % LEFT COLUMN
+
+  \block{Introduction \& Problem Statement}{
+    \input{sections/introduction.tex}
+  }
+
+  \block{Methodology}{
+    \input{sections/methodology.tex}
+  }
+
+  \column{0.5}
+
+  % RIGHT COLUMN
+
+  \block{Performance Results}{
+    \input{sections/results.tex}
+  }
+
+  \block{Conclusion \& Future Work}{
+    \input{sections/conclusion.tex}
+  }
+
+\end{columns}
+
+% Bottom section spanning full width
+\block{Acknowledgments}{
+  \input{sections/acknowledgments.tex}
+}
+
+% Bibliography section at bottom
+\block{References}{
+  \printbibliography[heading=none]
+}
+
+\end{document}

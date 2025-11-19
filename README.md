@@ -9,3 +9,14 @@
 Have the choice of a few different development environments:
 
 Overleaf (remote), Github Copilot Agents, Local Code Editor, Local AI Agent, etc.
+
+## Academic Poster
+
+The VisionAssist project includes a professional A0 poster for symposium presentations. The poster is generated from the same LaTeX source and assets as the main document, ensuring consistency.
+
+**Quick Start:**
+```bash
+nix develop -c ltx-compile poster/poster.tex
+```
+
+For detailed poster documentation, including customization and printing guidelines, see [poster/README.md](poster/README.md).

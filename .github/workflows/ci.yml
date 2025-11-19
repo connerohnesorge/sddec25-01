@@ -28,6 +28,21 @@ jobs:
             main.pdf
             references.bib
 
+  build-poster:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Poster LaTeX (latexmk)
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: poster.tex
+          working_directory: poster
+      - name: Upload Poster PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: poster
+          path: poster/poster.pdf
+
   chktex:
     runs-on: ubuntu-latest
     steps:
