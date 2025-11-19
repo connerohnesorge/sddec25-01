@@ -8,18 +8,17 @@ Our optimized system achieves real-time performance suitable for medical assisti
 \vspace{0.5em}
 
 \begin{center}
-\begin{tabular}{|l|c|}
-\hline
+\begin{tabular}{lc}
+\toprule
 \textbf{Metric} & \textbf{Achievement} \\
-\hline
-\hline
+\midrule
 Processing Speed & 60 FPS \\
 Frame Latency & 4 frames in <33.2ms \\
-Average Frame Time & ~8.3ms per frame \\
+Average Frame Time & \textasciitilde8.3ms per frame \\
 Segmentation Accuracy & 98.8\% IoU \\
 Emergency Detection & <100ms latency \\
 Memory Usage & 3.2GB / 4GB available \\
-\hline
+\bottomrule
 \end{tabular}
 \end{center}
 
@@ -28,7 +27,7 @@ Memory Usage & 3.2GB / 4GB available \\
 \textbf{Optimization Achievements:}
 
 \begin{itemize}
-    \item \textbf{5x Throughput Improvement:} Reduced processing time from 160ms to ~33.2ms per 4 frames through pipelined architecture
+    \item \textbf{5x Throughput Improvement:} Reduced processing time from 160ms to \textasciitilde33.2ms per 4 frames through pipelined architecture
     \item \textbf{Accuracy Preservation:} Maintained 98.8\% IoU despite aggressive optimization
     \item \textbf{Resource Efficiency:} Sequential DPU scheduling prevents algorithm starvation while maximizing utilization
     \item \textbf{Memory Optimization:} Efficient buffer management within 4GB constraint
@@ -64,8 +63,8 @@ Comprehensive testing confirms system reliability:
 
 Our testing methodology adheres to:
 \begin{itemize}
-    \item \textbf{IEEE 3129-2023:} Robustness testing for AI-based image recognition
-    \item \textbf{IEEE 2802-2022:} Performance evaluation for AI-based medical devices
+    \item \textbf{IEEE 3129--2023:} Robustness testing for AI-based image recognition
+    \item \textbf{IEEE 2802--2022:} Performance evaluation for AI-based medical devices
 \end{itemize}
 
 \vspace{0.5em}
