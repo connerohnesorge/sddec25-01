@@ -40,7 +40,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: poster
-          path: poster.pdf
+          path: poster/poster.pdf
 
   chktex:
     runs-on: ubuntu-latest

@@ -111,7 +111,7 @@ jobs:
       - name: Rename Poster PDF with version
         run: |
           NEW_VERSION="${{ steps.bump_version.outputs.NEW_VERSION }}"
-          mv poster.pdf "sddec25-01-poster-v${NEW_VERSION}.pdf"
+          mv poster/poster.pdf "sddec25-01-poster-v${NEW_VERSION}.pdf"
           ls -lh sddec25-01-poster-v${NEW_VERSION}.pdf
 
       - name: Create and push git tag
