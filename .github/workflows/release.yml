@@ -103,6 +103,17 @@ jobs:
           mv main.pdf "sddec25-01-v${NEW_VERSION}.pdf"
           ls -lh sddec25-01-v${NEW_VERSION}.pdf
 
+      - name: Build Poster PDF with LaTeX
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: poster/poster.tex
+
+      - name: Rename Poster PDF with version
+        run: |
+          NEW_VERSION="${{ steps.bump_version.outputs.NEW_VERSION }}"
+          mv poster.pdf "sddec25-01-poster-v${NEW_VERSION}.pdf"
+          ls -lh sddec25-01-poster-v${NEW_VERSION}.pdf
+
       - name: Create and push git tag
         run: |
           NEW_VERSION="${{ steps.bump_version.outputs.NEW_VERSION }}"
@@ -151,7 +162,8 @@ jobs:
           gh release create "v${NEW_VERSION}" \
             --title "Version ${NEW_VERSION}" \
             --notes-file release_notes.md \
-            "sddec25-01-v${NEW_VERSION}.pdf#Senior Design Document v${NEW_VERSION}"
+            "sddec25-01-v${NEW_VERSION}.pdf#Senior Design Document v${NEW_VERSION}" \
+            "sddec25-01-poster-v${NEW_VERSION}.pdf#Senior Design Poster v${NEW_VERSION}"
 
       - name: Release summary
         run: |
@@ -159,7 +171,8 @@ jobs:
           echo "## Release Created Successfully! :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** v${NEW_VERSION}" >> $GITHUB_STEP_SUMMARY
-          echo "**PDF:** sddec25-01-v${NEW_VERSION}.pdf" >> $GITHUB_STEP_SUMMARY
+          echo "**Document PDF:** sddec25-01-v${NEW_VERSION}.pdf" >> $GITHUB_STEP_SUMMARY
+          echo "**Poster PDF:** sddec25-01-poster-v${NEW_VERSION}.pdf" >> $GITHUB_STEP_SUMMARY
           echo "**Tag:** v${NEW_VERSION}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Changes" >> $GITHUB_STEP_SUMMARY

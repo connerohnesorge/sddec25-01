@@ -82,6 +82,9 @@
           exec = ''
             chktex main.tex
             chktex sections/*.tex
+            chktex poster/poster.tex
+            chktex poster/poster-config.tex
+            chktex poster/sections/*.tex
           '';
           description = "Lint LaTeX document(s)";
           deps = with pkgs; [
