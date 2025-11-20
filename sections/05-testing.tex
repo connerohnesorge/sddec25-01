@@ -226,22 +226,23 @@ Testing}\label{subsec:system-coordination-testing}
 
 \subsection{Automated Testing}\label{subsec:automated-testing}
 
-Automated regression testing was not implemented for this project due
-to hardware access constraints. The following limitations prevented
-the establishment of a continuous integration (CI) testing workflow:
+Automated \textbf{continuous integration (CI)} regression testing was not implemented for this project due
+to hardware access constraints. While individual system tests (such as stress and long-term tests) used automated scripts,
+these scripts required manual initiation and direct hardware access, and could not be run in a CI/CD pipeline.
+The following limitations prevented the establishment of a continuous integration (CI) testing workflow:
 
-\begin{itemize}
-  \item \textbf{Hardware Location}: The AMD Kria KV260 development
-    board was deployed at the client location rather than in a
-    team-accessible development environment
-  \item \textbf{Network Requirements}: Remote access to the board
-    required connection through the Iowa State University VPN,
-    creating network dependencies incompatible with standard CI/CD
-    infrastructure
-  \item \textbf{Physical Access Constraints}: Testing required direct
-    physical access to the hardware for deployment, configuration, and
-    debugging, which was not feasible in an automated workflow
-\end{itemize}
+  \begin{itemize}
+    \item \textbf{Hardware Location}: The AMD Kria KV260 development
+      board was deployed at the client location rather than in a
+      team-accessible development environment
+    \item \textbf{Network Requirements}: Remote access to the board
+      required connection through the Iowa State University VPN,
+      creating network dependencies incompatible with standard CI/CD
+      infrastructure
+    \item \textbf{Physical Access Constraints}: Testing required direct
+      physical access to the hardware for deployment, configuration, and
+      debugging, which was not feasible in an automated workflow
+  \end{itemize}
 
 In an ideal development environment with co-located hardware,
 automated regression tests would have included:
