@@ -479,6 +479,18 @@ Remember: Specs are truth. Changes are proposals. Keep them in sync.
 │   ├── TestingStrategy.pdf
 │   ├── UserTestingPlan.pdf
 │   └── *.pdf
+├── poster                   ( <- A0 portrait poster project)
+│   ├── poster.tex           ( <- main poster entry point)
+│   ├── poster-config.tex    ( <- ISU theme configuration)
+│   ├── sections             ( <- modular poster content)
+│   │   ├── title.tex
+│   │   ├── introduction.tex
+│   │   ├── methodology.tex
+│   │   ├── results.tex
+│   │   ├── conclusion.tex
+│   │   └── acknowledgments.tex
+│   ├── poster.pdf           ( <- generated A0 PDF, not committed)
+│   └── README.md            ( <- poster-specific documentation)
 ├── VERSION ( <- version of the project automatically updated DO NOT EDIT)
 ├── flake.nix
 ├── isusdd.cls
@@ -513,6 +525,7 @@ This repository contains documentation for **VisionAssist** (SDDEC25-01), an Iow
   - `pdflatex` and `latexmk` for compilation
   - `biblatex` with `biber` backend for IEEE-style references
   - Custom `isusdd.cls` document class (Iowa State University Senior Design Document)
+  - `tikzposter` class for A0 portrait poster generation (poster/ subdirectory)
 
 ### Development Environment
 - **Nix/NixOS**: Development environment management via `flake.nix`
@@ -520,6 +533,7 @@ This repository contains documentation for **VisionAssist** (SDDEC25-01), an Iow
 
 ### LaTeX Packages & Dependencies
 - **Document Structure**: geometry, hyperref, microtype, ragged2e
+- **Poster Formatting**: tikzposter (A0 poster layout), booktabs (professional tables)
 - **Code & Syntax**: listings, xcolor
 - **Mathematics**: amsmath, amssymb
 - **Graphics**: graphicx, float, subcaption
@@ -543,9 +557,10 @@ This repository contains documentation for **VisionAssist** (SDDEC25-01), an Iow
 
 **File Organization**:
 - Modular chapter-based structure (`sections/*.tex`)
-- Main document: `main.tex`
-- Separate bibliography: `references.bib`
-- Custom document class: `isusdd.cls`
+- Main document: `main.tex` (design document)
+- Poster project: `poster/` subdirectory (A0 format poster with `tikzposter` class)
+- Separate bibliography: `references.bib` (shared between main document and poster)
+- Custom document class: `isusdd.cls` (main document only)
 - Numbered section files: `01-introduction.tex`, `02-requirements.tex`, etc.
 
 **Citation and References**:
@@ -591,8 +606,10 @@ This repository contains documentation for **VisionAssist** (SDDEC25-01), an Iow
 - Address review comments promptly
 
 **Spell Checking and Validation**:
-- Run `nix develop -c 'lint'` before committing LaTeX changes
+- Run `nix develop -c 'lint'` before committing LaTeX changes (includes poster files)
 - Verify compilation with `nix develop -c 'ltx-compile'` succeeds without errors
+  - Main document: `ltx-compile main.tex`
+  - Poster: `ltx-compile poster/poster.tex` (from root) or `ltx-compile poster.tex` (from poster/ directory)
 - Check PDF output for formatting issues
 
 ### Architecture Patterns
@@ -632,6 +649,65 @@ main.tex (root)
 - All design decisions documented before implementation
 - Traceability from requirements through design to testing
 - Version controlled alongside code (in separate repo)
+
+#### Poster Architecture
+
+The `poster/` subdirectory contains a self-contained LaTeX project for generating an A0 portrait format academic poster (841mm x 1189mm / 33.1" x 46.8") using the `tikzposter` document class.
+
+**Poster Document Structure**:
+```
+poster/
+├── poster.tex              # Main entry point - document structure
+├── poster-config.tex       # ISU theme configuration (colors, fonts, styling)
+├── sections/               # Modular content blocks
+│   ├── title.tex          # Title, authors, institution
+│   ├── introduction.tex   # Introduction and problem statement
+│   ├── methodology.tex    # Methodology and approach
+│   ├── results.tex        # Performance results
+│   ├── conclusion.tex     # Conclusion and future work
+│   └── acknowledgments.tex # Acknowledgments
+├── poster.pdf             # Generated output (not committed to git)
+└── README.md              # Poster-specific documentation
+```
+
+**External Dependencies**:
+- `../assets/` - Shared figures (kv260.png, unet.png, title-logo.png, xilinx-vart-stack.png)
+- `../references.bib` - Shared bibliography with main design document
+
+**Design Principles**:
+- **Modular architecture**: Content separated into `sections/*.tex` files for maintainability
+- **Theme separation**: All styling (colors, fonts, block styles) isolated in `poster-config.tex`
+- **Asset reuse**: Single source of truth for figures in `../assets/` directory
+- **ISU branding**: Iowa State University color palette (Cardinal Red #C8102E, Gold #F1BE48)
+- **Readability**: 25pt base font size for 6+ feet viewing distance
+
+**Compilation**:
+```bash
+# Standard compilation (from poster/ directory)
+cd poster
+nix develop -c ltx-compile poster.tex
+
+# Watch mode for active editing
+cd poster
+nix develop -c ltx-watch poster.tex
+
+# From root directory
+nix develop -c ltx-compile poster/poster.tex
+```
+
+**Key Differences from Main Document**:
+- Uses `tikzposter` class instead of `isusdd.cls`
+- Two-column layout optimized for poster format
+- Shared bibliography and assets with main document
+- Independent compilation (does not depend on main.tex)
+- Designed for physical printing, not digital reading
+
+**Build Integration**:
+- Poster files included in lint checks (`nix develop -c 'lint'`)
+- Same development environment as main document (TeX Live Full)
+- Separate PDF output (poster.pdf vs main.pdf)
+
+For detailed poster editing guidelines, see `poster/README.md`.
 
 #### LaTeX Documentation Testing
 
