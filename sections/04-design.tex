@@ -345,7 +345,7 @@ following key components:
     \begin{itemize}
       \item System-on-Module (SoM) with programmable logic
       \item Quad-core ARM processor
-      \item DPU for accelerating neural network inference
+      \item DPU synthesized onto FPGA fabric for accelerating neural network inference
       \item Four 1GB DDR4 memory banks
       \item Various I/O interfaces for camera input and system communication
     \end{itemize}
@@ -492,13 +492,13 @@ efficiency for our application:
   \centering
   \includegraphics[width=0.7\textwidth]{assets/kv260.png}
   \caption{AMD Kria KV260 Development Board featuring Zynq
-  UltraScale+ MPSoC with integrated DPU for AI acceleration.}~\label{fig:kv260}
+  UltraScale+ MPSoC with DPU synthesized onto FPGA fabric via bitstream for AI acceleration.}~\label{fig:kv260}
 \end{figure}
 
 \begin{itemize}
   \item \textbf{Processing Power:} Quad-core ARM Cortex-A53 with 1.5
     GHz clock speed
-  \item \textbf{AI Acceleration:} Integrated DPU for neural network inference
+  \item \textbf{AI Acceleration:} DPU synthesized onto FPGA fabric via bitstream for neural network inference
   \item \textbf{Memory System:} 4GB DDR4 memory with four banks for
     parallel access
   \item \textbf{Connectivity:} Multiple I/O interfaces for camera
@@ -578,7 +578,7 @@ ONNX Runtime~\cite{onnxruntime} provide essential tools for our optimization:
 
 The VART stack architecture (Figure~\ref{fig:vart-stack}) illustrates
 the complete software stack from the application layer down to the
-Deep Learning Processing Unit (DPU) hardware. This layered approach
+Deep Learning Processing Unit (DPU) synthesized onto the FPGA fabric. This layered approach
 enables efficient neural network inference by providing optimized
 runtime libraries and hardware abstraction layers that maximize
 utilization of the Kria KV260's acceleration capabilities.

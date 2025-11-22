@@ -156,10 +156,10 @@ significantly shaped the design and optimization approach:
   \item \textbf{FPGA Fabric Modification Prohibition:}
     \begin{itemize}
       \item The team was explicitly directed not to modify or touch
-        the FPGA fabric containing the DPU\@.
+        the FPGA fabric or the DPU bitstream configuration.
       \item This constraint prevents hardware-level reconfiguration
         and requires all optimizations to be implemented at the software level.
-      \item The existing FPGA programming and DPU integration must
+      \item The existing FPGA bitstream (which synthesizes the DPU onto the programmable logic) must
         remain unchanged throughout development.
     \end{itemize}
 
