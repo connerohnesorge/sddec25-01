@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TODO: Add purpose description
+This specification defines requirements for generating professional A0 portrait academic posters using tikzposter LaTeX package with ISU branding, supporting modular content structure, asset reuse, and IEEE-style citations.
 
 ## Requirements
 

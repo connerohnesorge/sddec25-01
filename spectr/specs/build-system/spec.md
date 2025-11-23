@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TODO: Add purpose description
+This specification defines the build tooling and infrastructure for compiling LaTeX documents (main design document and poster) using Nix-based reproducible environments, CI/CD automation, and local development workflows.
 
 ## Requirements
 
