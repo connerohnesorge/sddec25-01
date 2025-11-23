@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Provides reproducible LaTeX compilation, linting, and CI/CD automation for academic documentation and poster projects using Nix development environment and GitHub Actions workflows.
+This specification defines the build tooling and infrastructure for compiling LaTeX documents (main design document and poster) using Nix-based reproducible environments, CI/CD automation, and local development workflows.
 
 ## Requirements
 
