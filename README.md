@@ -1,6 +1,6 @@
 # Assistive Eye Tracking System
 
-Eduroam Accessible Site: https://sddec25-01.sd.ece.iastate.edu/
+Eduroam Accessible Site: <https://sddec25-01.sd.ece.iastate.edu/>
 
 ## Real-Time Semantic Segmentation Optimization for Medical Assistance Applications
 
