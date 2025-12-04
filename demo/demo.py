@@ -75,6 +75,37 @@ class VisionAssistDemo:
         self.paused = False
         self.frame_count = 0
 
+        # Pre-allocated buffers for preprocessing (avoid per-frame allocations)
+        # Eye crop resized to model size (BGR for initial resize)
+        self._eye_crop_resized = np.empty((self.MODEL_HEIGHT, self.MODEL_WIDTH, 3), dtype=np.uint8)
+        # Grayscale conversion buffer
+        self._gray_buffer = np.empty((self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8)
+        # Gamma correction buffer
+        self._gamma_buffer = np.empty((self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8)
+        # CLAHE buffer (reusing _resized_buffer name for backward compat in normalize step)
+        self._resized_buffer = np.empty((self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8)
+        self._normalized_buffer = np.empty((self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.float32)
+        self._input_tensor = np.empty((1, 1, self.MODEL_WIDTH, self.MODEL_HEIGHT), dtype=np.float32)
+
+        # Pre-allocated buffer for inference output
+        self._mask_buffer = np.empty((self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8)
+        # Pre-allocated buffer for argmax output (before transpose) - int64 for np.argmax out=
+        self._argmax_buffer = np.empty((self.MODEL_WIDTH, self.MODEL_HEIGHT), dtype=np.int64)
+        # IO binding members (set up in _init_model if CUDA available)
+        self._io_binding = None
+        self._output_tensor = None
+
+        # Pre-allocated buffer for eye extraction (12 landmark points)
+        self._eye_points_buffer = np.empty((len(self.LEFT_EYE_INDICES), 2), dtype=np.int32)
+
+        # Pre-allocated buffers for visualization (sized lazily on first frame)
+        self._frame_rgb = None
+        self._overlay_buffer = None
+        self._green_overlay_cache = None
+        self._green_overlay_size = (0, 0)
+        # Pre-allocated buffer for visualization mask resize (max camera resolution)
+        self._mask_viz_buffer = np.empty((self.CAMERA_HEIGHT, self.CAMERA_WIDTH), dtype=np.uint8)
+
     def _init_camera(self):
         """Initialize webcam capture."""
         if self.verbose:
@@ -141,6 +172,66 @@ class VisionAssistDemo:
         if self.verbose:
             print(f"Model validated: input {input_shape}, output {output_shape}")
 
+        # Set up IO binding for zero-copy inference (CUDA only)
+        self._setup_io_binding()
+
+    def _setup_io_binding(self):
+        """
+        Set up ONNX Runtime IO binding for zero-copy inference.
+
+        IO binding allows pre-allocating input/output tensors to avoid
+        memory copies during inference. Only enabled for CUDA provider.
+        """
+        # IO binding is most beneficial with CUDA - skip for CPU
+        if "CUDA" not in self.execution_provider:
+            if self.verbose:
+                print("IO binding skipped (CPU provider)")
+            return
+
+        try:
+            # Get input/output metadata
+            input_meta = self.session.get_inputs()[0]
+            output_meta = self.session.get_outputs()[0]
+
+            # Pre-allocate output tensor (shape: 1, 2, 640, 400)
+            self._output_tensor = np.empty(
+                (1, 2, self.MODEL_WIDTH, self.MODEL_HEIGHT),
+                dtype=np.float32
+            )
+
+            # Create IO binding
+            self._io_binding = self.session.io_binding()
+
+            # Bind input tensor (already pre-allocated as self._input_tensor)
+            self._io_binding.bind_input(
+                name=input_meta.name,
+                device_type="cuda",
+                device_id=0,
+                element_type=np.float32,
+                shape=self._input_tensor.shape,
+                buffer_ptr=self._input_tensor.ctypes.data,
+            )
+
+            # Bind output tensor
+            self._io_binding.bind_output(
+                name=output_meta.name,
+                device_type="cuda",
+                device_id=0,
+                element_type=np.float32,
+                shape=self._output_tensor.shape,
+                buffer_ptr=self._output_tensor.ctypes.data,
+            )
+
+            if self.verbose:
+                print("IO binding enabled for CUDA inference")
+
+        except Exception as e:
+            # Fall back to regular inference if IO binding fails
+            if self.verbose:
+                print(f"IO binding setup failed, using regular inference: {e}")
+            self._io_binding = None
+            self._output_tensor = None
+
     def _init_face_mesh(self):
         """Initialize MediaPipe Face Mesh."""
         if self.verbose:
@@ -188,21 +279,18 @@ class VisionAssistDemo:
         """
         h, w = frame.shape[:2]
 
-        # Extract left eye landmark coordinates
-        eye_points = []
-        for idx in self.LEFT_EYE_INDICES:
+        # Extract left eye landmark coordinates into pre-allocated buffer
+        for i, idx in enumerate(self.LEFT_EYE_INDICES):
             landmark = landmarks.landmark[idx]
-            x = int(landmark.x * w)
-            y = int(landmark.y * h)
-            eye_points.append((x, y))
+            self._eye_points_buffer[i, 0] = int(landmark.x * w)
+            self._eye_points_buffer[i, 1] = int(landmark.y * h)
 
-        if self.verbose and len(eye_points) >= 3:
-            print(f"  First 3 eye landmarks: {eye_points[:3]}")
+        if self.verbose:
+            print(f"  First 3 eye landmarks: {self._eye_points_buffer[:3].tolist()}")
 
-        # Compute bounding box
-        eye_points = np.array(eye_points)
-        x_min, y_min = eye_points.min(axis=0)
-        x_max, y_max = eye_points.max(axis=0)
+        # Compute bounding box using pre-allocated buffer
+        x_min, y_min = self._eye_points_buffer.min(axis=0)
+        x_max, y_max = self._eye_points_buffer.max(axis=0)
 
         bbox_w = x_max - x_min
         bbox_h = y_max - y_min
@@ -250,112 +338,129 @@ class VisionAssistDemo:
         Preprocess eye region for model inference.
         CRITICAL: Must match training preprocessing exactly.
 
+        Uses pre-allocated buffers to avoid per-frame memory allocations.
+        All operations use dst= parameters to write directly to pre-allocated buffers.
+
         Args:
             eye_crop: BGR image of eye region
 
         Returns:
-            np.ndarray: Preprocessed tensor of shape (1, 1, 400, 640)
+            np.ndarray: Preprocessed tensor of shape (1, 1, 640, 400)
         """
-        t_start = time.time() if self.verbose else None
-
-        # Step 1: Convert to grayscale
-        gray = cv2.cvtColor(eye_crop, cv2.COLOR_BGR2GRAY)
         if self.verbose:
-            t_gray = time.time()
-            print(
-                f"  Grayscale: {(t_gray - t_start)*1000:.2f}ms, "
-                f"shape={gray.shape}, range=[{gray.min()}, {gray.max()}]"
-            )
+            t_start = time.time()
 
-        # Step 2: Gamma correction (gamma=0.8)
-        gamma_corrected = cv2.LUT(gray, self.gamma_table)
-        if self.verbose:
-            t_gamma = time.time()
-            print(
-                f"  Gamma correction: {(t_gamma - t_gray)*1000:.2f}ms, "
-                f"range=[{gamma_corrected.min()}, {gamma_corrected.max()}]"
-            )
-
-        # Step 3: CLAHE (Contrast Limited Adaptive Histogram Equalization)
-        clahe_img = self.clahe.apply(gamma_corrected)
-        if self.verbose:
-            t_clahe = time.time()
-            print(
-                f"  CLAHE: {(t_clahe - t_gamma)*1000:.2f}ms, "
-                f"range=[{clahe_img.min()}, {clahe_img.max()}]"
-            )
-
-        # Step 4: Resize to model input size (640x400)
-        resized = cv2.resize(
-            clahe_img, (self.MODEL_WIDTH, self.MODEL_HEIGHT), interpolation=cv2.INTER_LINEAR
+        # Step 1: Resize to model input size FIRST (into pre-allocated BGR buffer)
+        # This ensures all subsequent operations work on fixed-size buffers
+        cv2.resize(
+            eye_crop,
+            (self.MODEL_WIDTH, self.MODEL_HEIGHT),
+            dst=self._eye_crop_resized,
+            interpolation=cv2.INTER_LINEAR,
         )
         if self.verbose:
             t_resize = time.time()
             print(
-                f"  Resize: {(t_resize - t_clahe)*1000:.2f}ms, "
-                f"shape={resized.shape}"
+                f"  Resize: {(t_resize - t_start)*1000:.2f}ms, "
+                f"shape={self._eye_crop_resized.shape}"
+            )
+
+        # Step 2: Convert to grayscale (into pre-allocated buffer)
+        cv2.cvtColor(self._eye_crop_resized, cv2.COLOR_BGR2GRAY, dst=self._gray_buffer)
+        if self.verbose:
+            t_gray = time.time()
+            print(
+                f"  Grayscale: {(t_gray - t_resize)*1000:.2f}ms, "
+                f"shape={self._gray_buffer.shape}, range=[{self._gray_buffer.min()}, {self._gray_buffer.max()}]"
+            )
+
+        # Step 3: Gamma correction (gamma=0.8) (into pre-allocated buffer)
+        cv2.LUT(self._gray_buffer, self.gamma_table, dst=self._gamma_buffer)
+        if self.verbose:
+            t_gamma = time.time()
+            print(
+                f"  Gamma correction: {(t_gamma - t_gray)*1000:.2f}ms, "
+                f"range=[{self._gamma_buffer.min()}, {self._gamma_buffer.max()}]"
+            )
+
+        # Step 4: CLAHE (Contrast Limited Adaptive Histogram Equalization) (into pre-allocated buffer)
+        self.clahe.apply(self._gamma_buffer, dst=self._resized_buffer)
+        if self.verbose:
+            t_clahe = time.time()
+            print(
+                f"  CLAHE: {(t_clahe - t_gamma)*1000:.2f}ms, "
+                f"range=[{self._resized_buffer.min()}, {self._resized_buffer.max()}]"
             )
 
         # Step 5: Normalize (mean=0.5, std=0.5) -> range [-1, 1]
-        normalized = (resized.astype(np.float32) / 255.0 - self.NORMALIZE_MEAN) / self.NORMALIZE_STD
+        # Use in-place operations with pre-allocated buffer
+        np.multiply(self._resized_buffer, 1.0 / 255.0, out=self._normalized_buffer)
+        np.subtract(self._normalized_buffer, self.NORMALIZE_MEAN, out=self._normalized_buffer)
+        np.divide(self._normalized_buffer, self.NORMALIZE_STD, out=self._normalized_buffer)
         if self.verbose:
             t_normalize = time.time()
             print(
-                f"  Normalize: {(t_normalize - t_resize)*1000:.2f}ms, "
-                f"range=[{normalized.min():.3f}, {normalized.max():.3f}]"
+                f"  Normalize: {(t_normalize - t_clahe)*1000:.2f}ms, "
+                f"range=[{self._normalized_buffer.min():.3f}, {self._normalized_buffer.max():.3f}]"
             )
 
-        # Step 6: Add batch and channel dimensions -> (1, 1, 400, 640)
-        input_tensor = normalized[np.newaxis, np.newaxis, ...]
-
-        # Step 7: Transpose to match model's expected (B, C, W, H) format -> (1, 1, 640, 400)
-        input_tensor = np.transpose(input_tensor, (0, 1, 3, 2))
+        # Step 6: Fill pre-allocated tensor with transposed data
+        # Model expects (B, C, W, H) = (1, 1, 640, 400), so transpose H,W -> W,H
+        self._input_tensor[0, 0] = self._normalized_buffer.T
 
         if self.verbose:
             t_end = time.time()
             print(
-                f"  Final tensor shape: {input_tensor.shape}, "
+                f"  Final tensor shape: {self._input_tensor.shape}, "
                 f"total preprocessing: {(t_end - t_start)*1000:.2f}ms"
             )
 
-        return input_tensor
+        return self._input_tensor
 
     def _run_inference(self, input_tensor):
         """
         Run model inference on preprocessed input.
 
+        Uses pre-allocated mask buffer to avoid per-frame allocations.
+
         Args:
             input_tensor: Preprocessed tensor of shape (1, 1, 640, 400)
 
         Returns:
-            np.ndarray: Binary mask of shape (400, 640)
+            tuple: (mask, inference_time) where mask is shape (400, 640)
         """
         t_start = time.time()
 
-        # Run inference
-        output = self.session.run(None, {"input": input_tensor})[0]
+        # Run inference (uses IO binding if available for zero-copy)
+        if self._io_binding is not None:
+            self.session.run_with_iobinding(self._io_binding)
+            output = self._output_tensor
+        else:
+            output = self.session.run(None, {"input": input_tensor})[0]
 
         # Post-processing: argmax to get binary mask
-        # Model outputs (B, C, W, H) = (1, 2, 640, 400), argmax gives (640, 400)
-        mask = np.argmax(output[0], axis=0).astype(np.uint8)
-
-        # Transpose to (H, W) = (400, 640) for visualization
-        mask = mask.T
+        # Model outputs (B, C, W, H) = (1, 2, 640, 400), argmax over classes gives (640, 400)
+        # Use pre-allocated _argmax_buffer to store result before transpose
+        np.argmax(output[0], axis=0, out=self._argmax_buffer)
+        # Transpose and copy to mask buffer (auto-casts int64/int32 to uint8)
+        self._mask_buffer[:] = self._argmax_buffer.T
 
         inference_time = (time.time() - t_start) * 1000  # Convert to ms
 
         if self.verbose:
             print(
                 f"  Inference: {inference_time:.1f}ms, "
-                f"output shape={output.shape}, mask shape={mask.shape}, "
-                f"mask values=[{mask.min()}, {mask.max()}]"
+                f"output shape={output.shape}, mask shape={self._mask_buffer.shape}, "
+                f"mask values=[{self._mask_buffer.min()}, {self._mask_buffer.max()}]"
             )
 
-        return mask, inference_time
+        return self._mask_buffer, inference_time
 
     def _visualize(self, frame, eye_crop, mask, bbox, inference_time, face_detected):
         """
         Visualize segmentation results on frame.
+
+        Uses pre-allocated buffers to minimize per-frame allocations.
 
         Args:
             frame: Original BGR frame
@@ -368,7 +473,12 @@ class VisionAssistDemo:
         Returns:
             np.ndarray: Annotated frame
         """
-        annotated = frame.copy()
+        # Reuse overlay buffer if same size, otherwise reallocate
+        if self._overlay_buffer is None or self._overlay_buffer.shape != frame.shape:
+            self._overlay_buffer = np.empty_like(frame)
+
+        np.copyto(self._overlay_buffer, frame)
+        annotated = self._overlay_buffer
 
         # Draw status banner at top center
         banner_height = 50
@@ -376,16 +486,11 @@ class VisionAssistDemo:
         banner_x = 0
         banner_w = annotated.shape[1]
 
-        # Semi-transparent black background
-        overlay = annotated.copy()
-        cv2.rectangle(
-            overlay,
-            (banner_x, banner_y),
-            (banner_x + banner_w, banner_y + banner_height),
-            (0, 0, 0),
-            -1,
-        )
-        cv2.addWeighted(overlay, 0.5, annotated, 0.5, 0, annotated)
+        # Semi-transparent black background - draw directly on banner region only
+        # Create a view of just the banner region for blending
+        banner_region = annotated[banner_y : banner_y + banner_height, banner_x : banner_x + banner_w]
+        # Darken the banner region in-place (multiply by 0.5)
+        np.multiply(banner_region, 0.5, out=banner_region, casting="unsafe")
 
         # Status text
         if not face_detected:
@@ -415,17 +520,23 @@ class VisionAssistDemo:
         if mask is not None and bbox is not None:
             x, y, w, h = bbox
 
-            # Resize mask to match eye crop size
-            mask_resized = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
+            # Resize mask to match eye crop size (use view of pre-allocated buffer)
+            mask_view = self._mask_viz_buffer[:h, :w]
+            cv2.resize(mask, (w, h), dst=mask_view, interpolation=cv2.INTER_NEAREST)
 
-            # Create green overlay where mask == 1 (pupil)
+            # Reuse green overlay cache if same size
+            if self._green_overlay_size != (h, w):
+                self._green_overlay_cache = np.zeros((h, w, 3), dtype=np.uint8)
+                self._green_overlay_size = (h, w)
+            else:
+                self._green_overlay_cache.fill(0)
+
+            self._green_overlay_cache[mask_view == 1] = (0, 255, 0)
+
+            # Blend with original eye region
             eye_region = annotated[y : y + h, x : x + w]
-            green_overlay = np.zeros_like(eye_region)
-            green_overlay[mask_resized == 1] = (0, 255, 0)
-
-            # Blend with original
-            annotated[y : y + h, x : x + w] = cv2.addWeighted(
-                eye_region, 1 - self.OVERLAY_ALPHA, green_overlay, self.OVERLAY_ALPHA, 0
+            cv2.addWeighted(
+                eye_region, 1 - self.OVERLAY_ALPHA, self._green_overlay_cache, self.OVERLAY_ALPHA, 0, eye_region
             )
 
             # Draw bounding box
@@ -518,7 +629,8 @@ class VisionAssistDemo:
             while True:
                 if not self.paused:
                     # Capture frame
-                    t_capture = time.time() if self.verbose else None
+                    if self.verbose:
+                        t_capture = time.time()
                     ret, frame = self.cap.read()
                     if not ret:
                         print("Failed to capture frame")
@@ -526,18 +638,20 @@ class VisionAssistDemo:
                         continue
 
                     if self.verbose:
-                        t_capture_end = time.time()
                         print(
                             f"\nFrame {self.frame_count}: "
-                            f"capture {(t_capture_end - t_capture)*1000:.2f}ms"
+                            f"capture {(time.time() - t_capture)*1000:.2f}ms"
                         )
 
-                    # Convert to RGB for MediaPipe
-                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    # Convert to RGB for MediaPipe using pre-allocated buffer
+                    if self._frame_rgb is None or self._frame_rgb.shape != frame.shape:
+                        self._frame_rgb = np.empty_like(frame)
+                    cv2.cvtColor(frame, cv2.COLOR_BGR2RGB, dst=self._frame_rgb)
 
                     # Face detection
-                    t_face = time.time() if self.verbose else None
-                    results = self.face_mesh.process(frame_rgb)
+                    if self.verbose:
+                        t_face = time.time()
+                    results = self.face_mesh.process(self._frame_rgb)
                     face_detected = results.multi_face_landmarks is not None
 
                     if self.verbose:
