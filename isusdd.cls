@@ -123,6 +123,12 @@
 \let\@version\@empty
 \newcommand{\version}[1]{\def\@version{#1}}
 
+\newcommand{\@client}{}
+\newcommand{\client}[1]{\renewcommand{\@client}{#1}}
+
+\newcommand{\@advisor}{}
+\newcommand{\advisor}[1]{\renewcommand{\@advisor}{#1}}
+
 % Custom title page
 \renewcommand{\maketitle}{
   \begin{titlepage}
@@ -144,7 +150,16 @@
     {\Large\@teamname\\}
     \vspace{0.5cm}
     {\large\@teammembers\\}
-    \vspace{2cm}
+    \vspace{1cm}
+
+    \ifx\@client\@empty\else
+      {\large\textbf{Client:} \@client\\}
+      \vspace{0.3cm}
+    \fi
+    \ifx\@advisor\@empty\else
+      {\large\textbf{Faculty Advisor:} \@advisor\\}
+      \vspace{0.3cm}
+    \fi
 
     \vfill
 
