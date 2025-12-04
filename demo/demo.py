@@ -203,19 +203,21 @@ class VisionAssistDemo:
             self._io_binding = self.session.io_binding()
 
             # Bind input tensor (already pre-allocated as self._input_tensor)
+            # Use device_type="cpu" since buffer_ptr points to CPU numpy memory;
+            # ONNX Runtime will handle CPU-to-GPU transfers automatically
             self._io_binding.bind_input(
                 name=input_meta.name,
-                device_type="cuda",
+                device_type="cpu",
                 device_id=0,
                 element_type=np.float32,
                 shape=self._input_tensor.shape,
                 buffer_ptr=self._input_tensor.ctypes.data,
             )
 
-            # Bind output tensor
+            # Bind output tensor to CPU memory; ONNX Runtime handles GPU-to-CPU copy
             self._io_binding.bind_output(
                 name=output_meta.name,
-                device_type="cuda",
+                device_type="cpu",
                 device_id=0,
                 element_type=np.float32,
                 shape=self._output_tensor.shape,
