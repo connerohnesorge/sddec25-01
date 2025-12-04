@@ -1,0 +1,625 @@
+#!/usr/bin/env python3
+"""
+VisionAssist Live Demo - ShallowNet Semantic Segmentation
+
+This demo application performs real-time semantic segmentation on webcam input
+using the ShallowNet model. It demonstrates eye tracking and facial feature
+detection capabilities for the VisionAssist medical assistive technology project.
+
+The application captures live video, runs inference using ONNX Runtime,
+and visualizes the segmentation results with overlays.
+"""
+
+import argparse
+import time
+from collections import deque
+
+import cv2
+import mediapipe as mp
+import numpy as np
+import onnxruntime as ort
+
+
+class VisionAssistDemo:
+    """Main demo application for VisionAssist live webcam inference."""
+
+    # MediaPipe left eye landmark indices (12 points around the eye)
+    LEFT_EYE_INDICES = [362, 385, 387, 263, 373, 380, 374, 381, 382, 384, 398, 466]
+
+    # Target aspect ratio for eye region (width:height = 640:400 = 1.6:1)
+    TARGET_ASPECT_RATIO = 640 / 400
+
+    # Preprocessing parameters (MUST match training exactly)
+    GAMMA = 0.8
+    CLAHE_CLIP_LIMIT = 1.5
+    CLAHE_TILE_SIZE = (8, 8)
+    NORMALIZE_MEAN = 0.5
+    NORMALIZE_STD = 0.5
+
+    # Model input/output dimensions
+    MODEL_WIDTH = 640
+    MODEL_HEIGHT = 400
+
+    # Display settings
+    CAMERA_WIDTH = 1920
+    CAMERA_HEIGHT = 1080
+    MIN_EYE_REGION_SIZE = 100  # Minimum bounding box size
+    BBOX_PADDING = 0.2  # 20% padding on each side
+    OVERLAY_ALPHA = 0.5
+
+    def __init__(self, model_path: str, camera_index: int = 0, verbose: bool = False):
+        """
+        Initialize the VisionAssist demo.
+
+        Args:
+            model_path: Path to the ONNX model file
+            camera_index: Camera device index (default 0)
+            verbose: Enable comprehensive logging
+        """
+        self.model_path = model_path
+        self.camera_index = camera_index
+        self.verbose = verbose
+
+        # Performance tracking
+        self.fps_buffer = deque(maxlen=30)
+        self.last_frame_time = time.time()
+
+        # Initialize components
+        self._init_camera()
+        self._init_model()
+        self._init_face_mesh()
+        self._init_preprocessing()
+
+        # State
+        self.paused = False
+        self.frame_count = 0
+
+    def _init_camera(self):
+        """Initialize webcam capture."""
+        if self.verbose:
+            print(f"Initializing camera {self.camera_index}...")
+
+        self.cap = cv2.VideoCapture(self.camera_index)
+        if not self.cap.isOpened():
+            raise RuntimeError(
+                f"Failed to open camera {self.camera_index}. "
+                "Check that the camera is connected and not in use."
+            )
+
+        # Set resolution to Full HD
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.CAMERA_WIDTH)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.CAMERA_HEIGHT)
+
+        actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        if self.verbose:
+            print(
+                f"Camera initialized: {actual_width}x{actual_height} "
+                f"(requested {self.CAMERA_WIDTH}x{self.CAMERA_HEIGHT})"
+            )
+
+    def _init_model(self):
+        """Initialize ONNX Runtime session."""
+        if self.verbose:
+            print(f"Loading ONNX model from {self.model_path}...")
+
+        # Try CUDA first, fallback to CPU
+        providers = []
+        if "CUDAExecutionProvider" in ort.get_available_providers():
+            providers.append("CUDAExecutionProvider")
+        providers.append("CPUExecutionProvider")
+
+        self.session = ort.InferenceSession(self.model_path, providers=providers)
+        self.execution_provider = self.session.get_providers()[0]
+
+        if self.verbose:
+            print(f"Using execution provider: {self.execution_provider}")
+
+        # Validate model input shape
+        input_shape = self.session.get_inputs()[0].shape
+        expected_input = [-1, 1, self.MODEL_HEIGHT, self.MODEL_WIDTH]
+        if not (
+            (input_shape[0] in [-1, 1])
+            and input_shape[1] == 1
+            and input_shape[2] == self.MODEL_HEIGHT
+            and input_shape[3] == self.MODEL_WIDTH
+        ):
+            raise RuntimeError(
+                f"Model input shape mismatch. Expected {expected_input}, "
+                f"got {input_shape}"
+            )
+
+        # Validate model output shape
+        output_shape = self.session.get_outputs()[0].shape
+        expected_output = [-1, 2, self.MODEL_HEIGHT, self.MODEL_WIDTH]
+        if not (
+            (output_shape[0] in [-1, 1])
+            and output_shape[1] == 2
+            and output_shape[2] == self.MODEL_HEIGHT
+            and output_shape[3] == self.MODEL_WIDTH
+        ):
+            raise RuntimeError(
+                f"Model output shape mismatch. Expected {expected_output}, "
+                f"got {output_shape}"
+            )
+
+        if self.verbose:
+            print(f"Model validated: input {input_shape}, output {output_shape}")
+
+    def _init_face_mesh(self):
+        """Initialize MediaPipe Face Mesh."""
+        if self.verbose:
+            print("Initializing MediaPipe Face Mesh...")
+
+        self.mp_face_mesh = mp.solutions.face_mesh
+        self.face_mesh = self.mp_face_mesh.FaceMesh(
+            max_num_faces=1,
+            refine_landmarks=True,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5,
+        )
+
+        if self.verbose:
+            print("MediaPipe Face Mesh initialized")
+
+    def _init_preprocessing(self):
+        """Initialize preprocessing components."""
+        # Gamma correction lookup table
+        self.gamma_table = (255.0 * (np.linspace(0, 1, 256) ** self.GAMMA)).astype(
+            np.uint8
+        )
+
+        # CLAHE (Contrast Limited Adaptive Histogram Equalization)
+        self.clahe = cv2.createCLAHE(
+            clipLimit=self.CLAHE_CLIP_LIMIT, tileGridSize=self.CLAHE_TILE_SIZE
+        )
+
+        if self.verbose:
+            print(
+                f"Preprocessing initialized: gamma={self.GAMMA}, "
+                f"CLAHE(clip={self.CLAHE_CLIP_LIMIT}, tile={self.CLAHE_TILE_SIZE})"
+            )
+
+    def _extract_eye_region(self, frame, landmarks):
+        """
+        Extract left eye region from frame using MediaPipe landmarks.
+
+        Args:
+            frame: Input BGR frame
+            landmarks: MediaPipe face landmarks
+
+        Returns:
+            tuple: (eye_crop, bbox) where bbox is (x, y, w, h), or (None, None)
+        """
+        h, w = frame.shape[:2]
+
+        # Extract left eye landmark coordinates
+        eye_points = []
+        for idx in self.LEFT_EYE_INDICES:
+            landmark = landmarks.landmark[idx]
+            x = int(landmark.x * w)
+            y = int(landmark.y * h)
+            eye_points.append((x, y))
+
+        if self.verbose and len(eye_points) >= 3:
+            print(f"  First 3 eye landmarks: {eye_points[:3]}")
+
+        # Compute bounding box
+        eye_points = np.array(eye_points)
+        x_min, y_min = eye_points.min(axis=0)
+        x_max, y_max = eye_points.max(axis=0)
+
+        bbox_w = x_max - x_min
+        bbox_h = y_max - y_min
+
+        # Check if eye region is large enough
+        if bbox_w < self.MIN_EYE_REGION_SIZE or bbox_h < self.MIN_EYE_REGION_SIZE:
+            return None, None
+
+        # Add padding (20% on each side)
+        pad_w = int(bbox_w * self.BBOX_PADDING)
+        pad_h = int(bbox_h * self.BBOX_PADDING)
+
+        x_min = max(0, x_min - pad_w)
+        y_min = max(0, y_min - pad_h)
+        x_max = min(w, x_max + pad_w)
+        y_max = min(h, y_max + pad_h)
+
+        bbox_w = x_max - x_min
+        bbox_h = y_max - y_min
+
+        # Expand to 1.6:1 aspect ratio (640:400)
+        current_ratio = bbox_w / bbox_h
+        if current_ratio < self.TARGET_ASPECT_RATIO:
+            # Too narrow, expand width
+            target_w = int(bbox_h * self.TARGET_ASPECT_RATIO)
+            diff = target_w - bbox_w
+            x_min = max(0, x_min - diff // 2)
+            x_max = min(w, x_max + diff // 2)
+            bbox_w = x_max - x_min
+        else:
+            # Too short, expand height
+            target_h = int(bbox_w / self.TARGET_ASPECT_RATIO)
+            diff = target_h - bbox_h
+            y_min = max(0, y_min - diff // 2)
+            y_max = min(h, y_max + diff // 2)
+            bbox_h = y_max - y_min
+
+        # Extract region
+        eye_crop = frame[y_min:y_max, x_min:x_max]
+
+        return eye_crop, (x_min, y_min, bbox_w, bbox_h)
+
+    def _preprocess(self, eye_crop):
+        """
+        Preprocess eye region for model inference.
+        CRITICAL: Must match training preprocessing exactly.
+
+        Args:
+            eye_crop: BGR image of eye region
+
+        Returns:
+            np.ndarray: Preprocessed tensor of shape (1, 1, 400, 640)
+        """
+        t_start = time.time() if self.verbose else None
+
+        # Step 1: Convert to grayscale
+        gray = cv2.cvtColor(eye_crop, cv2.COLOR_BGR2GRAY)
+        if self.verbose:
+            t_gray = time.time()
+            print(
+                f"  Grayscale: {(t_gray - t_start)*1000:.2f}ms, "
+                f"shape={gray.shape}, range=[{gray.min()}, {gray.max()}]"
+            )
+
+        # Step 2: Gamma correction (gamma=0.8)
+        gamma_corrected = cv2.LUT(gray, self.gamma_table)
+        if self.verbose:
+            t_gamma = time.time()
+            print(
+                f"  Gamma correction: {(t_gamma - t_gray)*1000:.2f}ms, "
+                f"range=[{gamma_corrected.min()}, {gamma_corrected.max()}]"
+            )
+
+        # Step 3: CLAHE (Contrast Limited Adaptive Histogram Equalization)
+        clahe_img = self.clahe.apply(gamma_corrected)
+        if self.verbose:
+            t_clahe = time.time()
+            print(
+                f"  CLAHE: {(t_clahe - t_gamma)*1000:.2f}ms, "
+                f"range=[{clahe_img.min()}, {clahe_img.max()}]"
+            )
+
+        # Step 4: Resize to model input size (640x400)
+        resized = cv2.resize(
+            clahe_img, (self.MODEL_WIDTH, self.MODEL_HEIGHT), interpolation=cv2.INTER_LINEAR
+        )
+        if self.verbose:
+            t_resize = time.time()
+            print(
+                f"  Resize: {(t_resize - t_clahe)*1000:.2f}ms, "
+                f"shape={resized.shape}"
+            )
+
+        # Step 5: Normalize (mean=0.5, std=0.5) -> range [-1, 1]
+        normalized = (resized.astype(np.float32) / 255.0 - self.NORMALIZE_MEAN) / self.NORMALIZE_STD
+        if self.verbose:
+            t_normalize = time.time()
+            print(
+                f"  Normalize: {(t_normalize - t_resize)*1000:.2f}ms, "
+                f"range=[{normalized.min():.3f}, {normalized.max():.3f}]"
+            )
+
+        # Step 6: Add batch and channel dimensions -> (1, 1, 400, 640)
+        input_tensor = normalized[np.newaxis, np.newaxis, ...]
+
+        if self.verbose:
+            t_end = time.time()
+            print(
+                f"  Final tensor shape: {input_tensor.shape}, "
+                f"total preprocessing: {(t_end - t_start)*1000:.2f}ms"
+            )
+
+        return input_tensor
+
+    def _run_inference(self, input_tensor):
+        """
+        Run model inference on preprocessed input.
+
+        Args:
+            input_tensor: Preprocessed tensor of shape (1, 1, 400, 640)
+
+        Returns:
+            np.ndarray: Binary mask of shape (400, 640)
+        """
+        t_start = time.time()
+
+        # Run inference
+        output = self.session.run(None, {"input": input_tensor})[0]
+
+        # Post-processing: argmax to get binary mask
+        mask = np.argmax(output[0], axis=0).astype(np.uint8)
+
+        inference_time = (time.time() - t_start) * 1000  # Convert to ms
+
+        if self.verbose:
+            print(
+                f"  Inference: {inference_time:.1f}ms, "
+                f"output shape={output.shape}, mask shape={mask.shape}, "
+                f"mask values=[{mask.min()}, {mask.max()}]"
+            )
+
+        return mask, inference_time
+
+    def _visualize(self, frame, eye_crop, mask, bbox, inference_time, face_detected):
+        """
+        Visualize segmentation results on frame.
+
+        Args:
+            frame: Original BGR frame
+            eye_crop: Eye region crop
+            mask: Binary segmentation mask (400, 640)
+            bbox: Bounding box (x, y, w, h)
+            inference_time: Inference time in milliseconds
+            face_detected: Whether face was detected
+
+        Returns:
+            np.ndarray: Annotated frame
+        """
+        annotated = frame.copy()
+
+        # Draw status banner at top center
+        banner_height = 50
+        banner_y = 0
+        banner_x = 0
+        banner_w = annotated.shape[1]
+
+        # Semi-transparent black background
+        overlay = annotated.copy()
+        cv2.rectangle(
+            overlay,
+            (banner_x, banner_y),
+            (banner_x + banner_w, banner_y + banner_height),
+            (0, 0, 0),
+            -1,
+        )
+        cv2.addWeighted(overlay, 0.5, annotated, 0.5, 0, annotated)
+
+        # Status text
+        if not face_detected:
+            status_text = "No Face Detected"
+            status_color = (0, 255, 255)  # Yellow
+        elif mask is None:
+            status_text = "Move Closer"
+            status_color = (0, 255, 255)  # Yellow
+        else:
+            status_text = "Face Detected"
+            status_color = (0, 255, 0)  # Green
+
+        text_size = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)[0]
+        text_x = (banner_w - text_size[0]) // 2
+        text_y = banner_y + (banner_height + text_size[1]) // 2
+        cv2.putText(
+            annotated,
+            status_text,
+            (text_x, text_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.0,
+            status_color,
+            2,
+        )
+
+        # If we have a valid mask, overlay it on the eye region
+        if mask is not None and bbox is not None:
+            x, y, w, h = bbox
+
+            # Resize mask to match eye crop size
+            mask_resized = cv2.resize(mask, (w, h), interpolation=cv2.INTER_NEAREST)
+
+            # Create green overlay where mask == 1 (pupil)
+            eye_region = annotated[y : y + h, x : x + w]
+            green_overlay = np.zeros_like(eye_region)
+            green_overlay[mask_resized == 1] = (0, 255, 0)
+
+            # Blend with original
+            annotated[y : y + h, x : x + w] = cv2.addWeighted(
+                eye_region, 1 - self.OVERLAY_ALPHA, green_overlay, self.OVERLAY_ALPHA, 0
+            )
+
+            # Draw bounding box
+            cv2.rectangle(annotated, (x, y), (x + w, y + h), (0, 255, 0), 3)
+
+        # Draw FPS counter (top-left, below banner)
+        fps = self._calculate_fps()
+        cv2.putText(
+            annotated,
+            f"FPS: {fps:.1f}",
+            (10, banner_height + 35),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.0,
+            (0, 255, 0),
+            2,
+        )
+
+        # Draw inference time (below FPS)
+        if inference_time is not None:
+            cv2.putText(
+                annotated,
+                f"Inference: {inference_time:.1f}ms",
+                (10, banner_height + 75),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.0,
+                (0, 255, 0),
+                2,
+            )
+
+        # Draw execution provider (below inference time)
+        provider_short = (
+            "GPU" if "CUDA" in self.execution_provider else "CPU"
+        )
+        cv2.putText(
+            annotated,
+            f"Device: {provider_short}",
+            (10, banner_height + 115),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.0,
+            (0, 255, 0),
+            2,
+        )
+
+        return annotated
+
+    def _calculate_fps(self):
+        """Calculate rolling average FPS."""
+        current_time = time.time()
+        delta = current_time - self.last_frame_time
+        self.last_frame_time = current_time
+
+        if delta > 0:
+            self.fps_buffer.append(1.0 / delta)
+
+        if len(self.fps_buffer) > 0:
+            return sum(self.fps_buffer) / len(self.fps_buffer)
+        return 0.0
+
+    def run(self):
+        """Main processing loop."""
+        print("\n" + "=" * 80)
+        print("VisionAssist Live Demo")
+        print("=" * 80)
+        print(f"Model: {self.model_path}")
+        print(f"Camera: {self.camera_index}")
+        print(f"Execution Provider: {self.execution_provider}")
+        print("\nControls:")
+        print("  ESC - Exit")
+        print("  SPACE - Pause/Resume")
+        print("=" * 80 + "\n")
+
+        try:
+            while True:
+                if not self.paused:
+                    # Capture frame
+                    t_capture = time.time() if self.verbose else None
+                    ret, frame = self.cap.read()
+                    if not ret:
+                        print("Failed to capture frame")
+                        break
+
+                    if self.verbose:
+                        t_capture_end = time.time()
+                        print(
+                            f"\nFrame {self.frame_count}: "
+                            f"capture {(t_capture_end - t_capture)*1000:.2f}ms"
+                        )
+
+                    # Convert to RGB for MediaPipe
+                    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+                    # Face detection
+                    t_face = time.time() if self.verbose else None
+                    results = self.face_mesh.process(frame_rgb)
+                    face_detected = results.multi_face_landmarks is not None
+
+                    if self.verbose:
+                        t_face_end = time.time()
+                        print(
+                            f"  Face detection: {(t_face_end - t_face)*1000:.2f}ms, "
+                            f"detected={face_detected}"
+                        )
+
+                    # Initialize variables
+                    eye_crop = None
+                    bbox = None
+                    mask = None
+                    inference_time = None
+
+                    # Process if face detected
+                    if face_detected:
+                        landmarks = results.multi_face_landmarks[0]
+
+                        # Extract eye region
+                        eye_crop, bbox = self._extract_eye_region(frame, landmarks)
+
+                        if eye_crop is not None:
+                            # Preprocess
+                            input_tensor = self._preprocess(eye_crop)
+
+                            # Run inference
+                            mask, inference_time = self._run_inference(input_tensor)
+
+                    # Visualize
+                    annotated = self._visualize(
+                        frame, eye_crop, mask, bbox, inference_time, face_detected
+                    )
+
+                    # Display
+                    cv2.imshow("VisionAssist Live Demo", annotated)
+
+                    self.frame_count += 1
+                else:
+                    # Paused - just wait
+                    cv2.waitKey(100)
+
+                # Handle keyboard input
+                key = cv2.waitKey(1) & 0xFF
+                if key == 27:  # ESC
+                    print("\nExiting...")
+                    break
+                elif key == ord(" "):  # SPACE
+                    self.paused = not self.paused
+                    status = "Paused" if self.paused else "Resumed"
+                    print(f"\n{status}")
+
+        finally:
+            self._cleanup()
+
+    def _cleanup(self):
+        """Release resources."""
+        if self.verbose:
+            print("\nCleaning up resources...")
+
+        if hasattr(self, "cap"):
+            self.cap.release()
+        if hasattr(self, "face_mesh"):
+            self.face_mesh.close()
+        cv2.destroyAllWindows()
+
+        if self.verbose:
+            print("Cleanup complete")
+
+
+def main():
+    """Main entry point for the VisionAssist live demo."""
+    parser = argparse.ArgumentParser(
+        description="VisionAssist Live Demo - ShallowNet Semantic Segmentation"
+    )
+    parser.add_argument(
+        "--model",
+        type=str,
+        required=True,
+        help="Path to ONNX model file (REQUIRED)",
+    )
+    parser.add_argument(
+        "--camera",
+        type=int,
+        default=0,
+        help="Camera index (default: 0)",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable comprehensive logging",
+    )
+
+    args = parser.parse_args()
+
+    # Initialize and run demo
+    demo = VisionAssistDemo(
+        model_path=args.model, camera_index=args.camera, verbose=args.verbose
+    )
+    demo.run()
+
+
+if __name__ == "__main__":
+    main()
