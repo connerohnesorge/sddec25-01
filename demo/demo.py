@@ -6,11 +6,12 @@ This demo application performs real-time semantic segmentation on webcam input
 using the ShallowNet model. It demonstrates eye tracking and facial feature
 detection capabilities for the VisionAssist medical assistive technology project.
 
-The application captures live video, runs inference using ONNX Runtime,
+The application captures live video, runs inference using PyTorch (with MPS support),
 and visualizes the segmentation results with overlays.
 """
 
 import argparse
+import math
 import platform
 import time
 from collections import deque
@@ -18,7 +19,429 @@ from collections import deque
 import cv2
 import mediapipe as mp
 import numpy as np
-import onnxruntime as ort
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+def get_device(requested_device: str | None = None) -> torch.device:
+    """
+    Get the best available device for inference.
+
+    Priority: CUDA > MPS > CPU (unless overridden by requested_device)
+
+    Args:
+        requested_device: Optional device name ("cuda", "mps", "cpu") to force
+
+    Returns:
+        torch.device for inference
+    """
+    if requested_device:
+        return torch.device(requested_device)
+
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        return torch.device("mps")
+    else:
+        return torch.device("cpu")
+
+
+class DownBlock(nn.Module):
+    def __init__(
+        self,
+        input_channels,
+        output_channels,
+        down_size,
+        dropout=False,
+        prob=0,
+    ):
+        super(
+            DownBlock,
+            self,
+        ).__init__()
+        self.depthwise_conv1 = nn.Conv2d(
+            input_channels,
+            input_channels,
+            kernel_size=3,
+            padding=1,
+            groups=input_channels,
+        )
+        self.pointwise_conv1 = nn.Conv2d(
+            input_channels,
+            output_channels,
+            kernel_size=1,
+        )
+        self.conv21 = nn.Conv2d(
+            input_channels + output_channels,
+            output_channels,
+            kernel_size=1,
+            padding=0,
+        )
+        self.depthwise_conv22 = nn.Conv2d(
+            output_channels,
+            output_channels,
+            kernel_size=3,
+            padding=1,
+            groups=output_channels,
+        )
+        self.pointwise_conv22 = nn.Conv2d(
+            output_channels,
+            output_channels,
+            kernel_size=1,
+        )
+        self.conv31 = nn.Conv2d(
+            input_channels + 2 * output_channels,
+            output_channels,
+            kernel_size=1,
+            padding=0,
+        )
+        self.depthwise_conv32 = nn.Conv2d(
+            output_channels,
+            output_channels,
+            kernel_size=3,
+            padding=1,
+            groups=output_channels,
+        )
+        self.pointwise_conv32 = nn.Conv2d(
+            output_channels,
+            output_channels,
+            kernel_size=1,
+        )
+        self.max_pool = nn.AvgPool2d(kernel_size=down_size)
+        self.relu = nn.LeakyReLU()
+        self.down_size = down_size
+        self.dropout = dropout
+        self.dropout1 = nn.Dropout(p=prob)
+        self.dropout2 = nn.Dropout(p=prob)
+        self.dropout3 = nn.Dropout(p=prob)
+        self.bn = torch.nn.BatchNorm2d(num_features=output_channels)
+
+    def forward(self, x):
+        if self.down_size is not None:
+            x = self.max_pool(x)
+        if self.dropout:
+            x1 = self.relu(
+                self.dropout1(self.pointwise_conv1(self.depthwise_conv1(x)))
+            )
+            x21 = torch.cat(
+                (x, x1),
+                dim=1,
+            )
+            x22 = self.relu(
+                self.dropout2(
+                    self.pointwise_conv22(
+                        self.depthwise_conv22(self.conv21(x21))
+                    )
+                )
+            )
+            x31 = torch.cat(
+                (
+                    x21,
+                    x22,
+                ),
+                dim=1,
+            )
+            out = self.relu(
+                self.dropout3(
+                    self.pointwise_conv32(
+                        self.depthwise_conv32(self.conv31(x31))
+                    )
+                )
+            )
+        else:
+            x1 = self.relu(self.pointwise_conv1(self.depthwise_conv1(x)))
+            x21 = torch.cat(
+                (x, x1),
+                dim=1,
+            )
+            x22 = self.relu(
+                self.pointwise_conv22(
+                    self.depthwise_conv22(self.conv21(x21))
+                )
+            )
+            x31 = torch.cat(
+                (
+                    x21,
+                    x22,
+                ),
+                dim=1,
+            )
+            out = self.relu(
+                self.pointwise_conv32(
+                    self.depthwise_conv32(self.conv31(x31))
+                )
+            )
+        return self.bn(out)
+
+
+class UpBlockConcat(nn.Module):
+    def __init__(
+        self,
+        skip_channels,
+        input_channels,
+        output_channels,
+        up_stride,
+        dropout=False,
+        prob=0,
+    ):
+        super(
+            UpBlockConcat,
+            self,
+        ).__init__()
+        self.conv11 = nn.Conv2d(
+            skip_channels + input_channels,
+            output_channels,
+            kernel_size=1,
+            padding=0,
+        )
+        self.depthwise_conv12 = nn.Conv2d(
+            output_channels,
+            output_channels,
+            kernel_size=3,
+            padding=1,
+            groups=output_channels,
+        )
+        self.pointwise_conv12 = nn.Conv2d(
+            output_channels,
+            output_channels,
+            kernel_size=1,
+        )
+        self.conv21 = nn.Conv2d(
+            skip_channels + input_channels + output_channels,
+            output_channels,
+            kernel_size=1,
+            padding=0,
+        )
+        self.depthwise_conv22 = nn.Conv2d(
+            output_channels,
+            output_channels,
+            kernel_size=3,
+            padding=1,
+            groups=output_channels,
+        )
+        self.pointwise_conv22 = nn.Conv2d(
+            output_channels,
+            output_channels,
+            kernel_size=1,
+        )
+        self.relu = nn.LeakyReLU()
+        self.up_stride = up_stride
+        self.dropout = dropout
+        self.dropout1 = nn.Dropout(p=prob)
+        self.dropout2 = nn.Dropout(p=prob)
+
+    def forward(
+        self,
+        prev_feature_map,
+        x,
+    ):
+        x = nn.functional.interpolate(
+            x,
+            scale_factor=self.up_stride,
+            mode="nearest",
+        )
+        x = torch.cat(
+            (
+                x,
+                prev_feature_map,
+            ),
+            dim=1,
+        )
+        if self.dropout:
+            x1 = self.relu(
+                self.dropout1(
+                    self.pointwise_conv12(
+                        self.depthwise_conv12(self.conv11(x))
+                    )
+                )
+            )
+            x21 = torch.cat(
+                (x, x1),
+                dim=1,
+            )
+            out = self.relu(
+                self.dropout2(
+                    self.pointwise_conv22(
+                        self.depthwise_conv22(self.conv21(x21))
+                    )
+                )
+            )
+        else:
+            x1 = self.relu(
+                self.pointwise_conv12(self.depthwise_conv12(self.conv11(x)))
+            )
+            x21 = torch.cat(
+                (x, x1),
+                dim=1,
+            )
+            out = self.relu(
+                self.pointwise_conv22(
+                    self.depthwise_conv22(self.conv21(x21))
+                )
+            )
+        return out
+
+
+class ShallowNet(nn.Module):
+    def __init__(
+        self,
+        in_channels=1,
+        out_channels=2,
+        channel_size=32,
+        concat=True,
+        dropout=False,
+        prob=0,
+    ):
+        super(
+            ShallowNet,
+            self,
+        ).__init__()
+        self.down_block1 = DownBlock(
+            input_channels=in_channels,
+            output_channels=channel_size,
+            down_size=None,
+            dropout=dropout,
+            prob=prob,
+        )
+        self.down_block2 = DownBlock(
+            input_channels=channel_size,
+            output_channels=channel_size,
+            down_size=(
+                2,
+                2,
+            ),
+            dropout=dropout,
+            prob=prob,
+        )
+        self.down_block3 = DownBlock(
+            input_channels=channel_size,
+            output_channels=channel_size,
+            down_size=(
+                2,
+                2,
+            ),
+            dropout=dropout,
+            prob=prob,
+        )
+        self.down_block4 = DownBlock(
+            input_channels=channel_size,
+            output_channels=channel_size,
+            down_size=(
+                2,
+                2,
+            ),
+            dropout=dropout,
+            prob=prob,
+        )
+        self.up_block1 = UpBlockConcat(
+            skip_channels=channel_size,
+            input_channels=channel_size,
+            output_channels=channel_size,
+            up_stride=(
+                2,
+                2,
+            ),
+            dropout=dropout,
+            prob=prob,
+        )
+        self.up_block2 = UpBlockConcat(
+            skip_channels=channel_size,
+            input_channels=channel_size,
+            output_channels=channel_size,
+            up_stride=(
+                2,
+                2,
+            ),
+            dropout=dropout,
+            prob=prob,
+        )
+        self.up_block3 = UpBlockConcat(
+            skip_channels=channel_size,
+            input_channels=channel_size,
+            output_channels=channel_size,
+            up_stride=(
+                2,
+                2,
+            ),
+            dropout=dropout,
+            prob=prob,
+        )
+        self.out_conv1 = nn.Conv2d(
+            in_channels=channel_size,
+            out_channels=out_channels,
+            kernel_size=1,
+            padding=0,
+        )
+        self.concat = concat
+        self.dropout = dropout
+        self.dropout1 = nn.Dropout(p=prob)
+        self._initialize_weights()
+
+    def _initialize_weights(
+        self,
+    ):
+        for m in self.modules():
+            if isinstance(
+                m,
+                nn.Conv2d,
+            ):
+                if (
+                    m.groups == m.in_channels
+                    and m.in_channels == m.out_channels
+                ):
+                    n = m.kernel_size[0] * m.kernel_size[1]
+                    m.weight.data.normal_(
+                        0,
+                        math.sqrt(2.0 / n),
+                    )
+                elif m.kernel_size == (
+                    1,
+                    1,
+                ):
+                    n = m.in_channels
+                    m.weight.data.normal_(
+                        0,
+                        math.sqrt(2.0 / n),
+                    )
+                else:
+                    n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                    m.weight.data.normal_(
+                        0,
+                        math.sqrt(2.0 / n),
+                    )
+                if m.bias is not None:
+                    m.bias.data.zero_()
+            elif isinstance(
+                m,
+                nn.BatchNorm2d,
+            ):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+            elif isinstance(
+                m,
+                nn.Linear,
+            ):
+                n = m.weight.size(1)
+                m.weight.data.normal_(
+                    0,
+                    0.01,
+                )
+                m.bias.data.zero_()
+
+    def forward(self, x):
+        x1 = self.down_block1(x)
+        x2 = self.down_block2(x1)
+        x3 = self.down_block3(x2)
+        x4 = self.down_block4(x3)
+        x5 = self.up_block1(x3, x4)
+        x6 = self.up_block2(x2, x5)
+        x7 = self.up_block3(x1, x6)
+        if self.dropout:
+            out = self.out_conv1(self.dropout1(x7))
+        else:
+            out = self.out_conv1(x7)
+        return out
 
 
 class VisionAssistDemo:
@@ -48,14 +471,15 @@ class VisionAssistDemo:
     BBOX_PADDING = 0.2  # 20% padding on each side
     OVERLAY_ALPHA = 0.5
 
-    def __init__(self, model_path: str, camera_index: int = 0, verbose: bool = False):
+    def __init__(self, model_path: str, camera_index: int = 0, verbose: bool = False, device: str | None = None):
         """
         Initialize the VisionAssist demo.
 
         Args:
-            model_path: Path to the ONNX model file
+            model_path: Path to the PyTorch model file (.pt)
             camera_index: Camera device index (default 0)
             verbose: Enable comprehensive logging
+            device: Force device ("cuda", "mps", "cpu"), default auto-detect
         """
         self.model_path = model_path
         self.camera_index = camera_index
@@ -64,6 +488,9 @@ class VisionAssistDemo:
         # Performance tracking
         self.fps_buffer = deque(maxlen=30)
         self.last_frame_time = time.time()
+
+        # Initialize device
+        self.device = get_device(device)
 
         # Initialize components
         self._init_camera()
@@ -91,9 +518,6 @@ class VisionAssistDemo:
         self._mask_buffer = np.empty((self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8)
         # Pre-allocated buffer for argmax output (before transpose) - int64 for np.argmax out=
         self._argmax_buffer = np.empty((self.MODEL_WIDTH, self.MODEL_HEIGHT), dtype=np.int64)
-        # IO binding members (set up in _init_model if CUDA available)
-        self._io_binding = None
-        self._output_tensor = None
 
         # Pre-allocated buffer for eye extraction (12 landmark points)
         self._eye_points_buffer = np.empty((len(self.LEFT_EYE_INDICES), 2), dtype=np.int32)
@@ -137,102 +561,20 @@ class VisionAssistDemo:
             )
 
     def _init_model(self):
-        """Initialize ONNX Runtime session."""
+        """Initialize PyTorch model."""
         if self.verbose:
-            print(f"Loading ONNX model from {self.model_path}...")
+            print(f"Loading PyTorch model from {self.model_path}...")
 
-        # Try CUDA first, fallback to CPU
-        providers = []
-        if "CUDAExecutionProvider" in ort.get_available_providers():
-            providers.append("CUDAExecutionProvider")
-        providers.append("CPUExecutionProvider")
-
-        self.session = ort.InferenceSession(self.model_path, providers=providers)
-        self.execution_provider = self.session.get_providers()[0]
-
-        if self.verbose:
-            print(f"Using execution provider: {self.execution_provider}")
-
-        # Get model shapes for validation
-        input_shape = self.session.get_inputs()[0].shape
-        output_shape = self.session.get_outputs()[0].shape
-
-        # Model expects (B, C, W, H) format - verify dimensions match
-        if self.verbose:
-            print(f"Model input shape: {input_shape}")
-            print(f"Model output shape: {output_shape}")
-
-        # Validate output has 2 classes for binary segmentation
-        if len(output_shape) != 4 or output_shape[1] != 2:
-            raise RuntimeError(
-                f"Model output shape unexpected. Expected 4D with 2 classes, "
-                f"got {output_shape}"
-            )
+        # Create model and load weights
+        self.model = ShallowNet(in_channels=1, out_channels=2, channel_size=32)
+        self.model.load_state_dict(
+            torch.load(self.model_path, map_location=self.device, weights_only=True)
+        )
+        self.model = self.model.to(self.device)
+        self.model.eval()
 
         if self.verbose:
-            print(f"Model validated: input {input_shape}, output {output_shape}")
-
-        # Set up IO binding for zero-copy inference (CUDA only)
-        self._setup_io_binding()
-
-    def _setup_io_binding(self):
-        """
-        Set up ONNX Runtime IO binding for zero-copy inference.
-
-        IO binding allows pre-allocating input/output tensors to avoid
-        memory copies during inference. Only enabled for CUDA provider.
-        """
-        # IO binding is most beneficial with CUDA - skip for CPU
-        if "CUDA" not in self.execution_provider:
-            if self.verbose:
-                print("IO binding skipped (CPU provider)")
-            return
-
-        try:
-            # Get input/output metadata
-            input_meta = self.session.get_inputs()[0]
-            output_meta = self.session.get_outputs()[0]
-
-            # Pre-allocate output tensor (shape: 1, 2, 640, 400)
-            self._output_tensor = np.empty(
-                (1, 2, self.MODEL_WIDTH, self.MODEL_HEIGHT),
-                dtype=np.float32
-            )
-
-            # Create IO binding
-            self._io_binding = self.session.io_binding()
-
-            # Bind input tensor (already pre-allocated as self._input_tensor)
-            # Use device_type="cpu" since buffer_ptr points to CPU numpy memory;
-            # ONNX Runtime will handle CPU-to-GPU transfers automatically
-            self._io_binding.bind_input(
-                name=input_meta.name,
-                device_type="cpu",
-                device_id=0,
-                element_type=np.float32,
-                shape=self._input_tensor.shape,
-                buffer_ptr=self._input_tensor.ctypes.data,
-            )
-
-            # Bind output tensor to CPU memory; ONNX Runtime handles GPU-to-CPU copy
-            self._io_binding.bind_output(
-                name=output_meta.name,
-                device_type="cpu",
-                device_id=0,
-                element_type=np.float32,
-                shape=self._output_tensor.shape,
-                buffer_ptr=self._output_tensor.ctypes.data,
-            )
-
-            if self.verbose:
-                print("IO binding enabled for CUDA inference")
-
-        except Exception as e:
-            # Fall back to regular inference if IO binding fails
-            if self.verbose:
-                print(f"IO binding setup failed, using regular inference: {e}")
-            self._io_binding = None
-            self._output_tensor = None
+            print(f"Model loaded on device: {self.device.type.upper()}")
 
     def _init_face_mesh(self):
         """Initialize MediaPipe Face Mesh."""
@@ -423,8 +765,6 @@ class VisionAssistDemo:
         """
         Run model inference on preprocessed input.
 
-        Uses pre-allocated mask buffer to avoid per-frame allocations.
-
         Args:
             input_tensor: Preprocessed tensor of shape (1, 1, 640, 400)
 
@@ -433,21 +773,20 @@ class VisionAssistDemo:
         """
         t_start = time.time()
 
-        # Run inference (uses IO binding if available for zero-copy)
-        if self._io_binding is not None:
-            self.session.run_with_iobinding(self._io_binding)
-            output = self._output_tensor
-        else:
-            output = self.session.run(None, {"input": input_tensor})[0]
+        # Convert numpy to torch tensor and move to device
+        input_torch = torch.from_numpy(input_tensor).to(self.device)
+
+        # Run inference
+        with torch.no_grad():
+            output = self.model(input_torch)
 
         # Post-processing: argmax to get binary mask
         # Model outputs (B, C, W, H) = (1, 2, 640, 400), argmax over classes gives (640, 400)
-        # Use pre-allocated _argmax_buffer to store result before transpose
-        np.argmax(output[0], axis=0, out=self._argmax_buffer)
-        # Transpose and copy to mask buffer (auto-casts int64/int32 to uint8)
+        output_np = output.cpu().numpy()
+        np.argmax(output_np[0], axis=0, out=self._argmax_buffer)
         self._mask_buffer[:] = self._argmax_buffer.T
 
-        inference_time = (time.time() - t_start) * 1000  # Convert to ms
+        inference_time = (time.time() - t_start) * 1000
 
         if self.verbose:
             print(
@@ -568,13 +907,10 @@ class VisionAssistDemo:
                 2,
             )
 
-        # Draw execution provider (below inference time)
-        provider_short = (
-            "GPU" if "CUDA" in self.execution_provider else "CPU"
-        )
+        # Draw device (below inference time)
         cv2.putText(
             annotated,
-            f"Device: {provider_short}",
+            f"Device: {self.device.type.upper()}",
             (10, banner_height + 115),
             cv2.FONT_HERSHEY_SIMPLEX,
             1.0,
@@ -604,7 +940,7 @@ class VisionAssistDemo:
         print("=" * 80)
         print(f"Model: {self.model_path}")
         print(f"Camera: {self.camera_index}")
-        print(f"Execution Provider: {self.execution_provider}")
+        print(f"Device: {self.device.type.upper()}")
         print("\nControls:")
         print("  ESC - Exit")
         print("  SPACE - Pause/Resume")
@@ -733,7 +1069,7 @@ def main():
         "--model",
         type=str,
         required=True,
-        help="Path to ONNX model file (REQUIRED)",
+        help="Path to PyTorch model file (.pt) (REQUIRED)",
     )
     parser.add_argument(
         "--camera",
@@ -746,12 +1082,19 @@ def main():
         action="store_true",
         help="Enable comprehensive logging",
     )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        choices=["cuda", "mps", "cpu"],
+        help="Force device (default: auto-detect CUDA > MPS > CPU)",
+    )
 
     args = parser.parse_args()
 
     # Initialize and run demo
     demo = VisionAssistDemo(
-        model_path=args.model, camera_index=args.camera, verbose=args.verbose
+        model_path=args.model, camera_index=args.camera, verbose=args.verbose, device=args.device
     )
     demo.run()
 

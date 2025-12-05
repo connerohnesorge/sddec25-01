@@ -28,8 +28,6 @@ train_image = (
         "datasets>=4.4.1",
         "huggingface_hub>=0.16.0",
         "pyarrow>=14.0.0",
-        "onnx>=1.15.0",
-        "onnxruntime>=1.17.0",
         "pyyaml>=6.0.0",
     )
 )
@@ -874,7 +872,7 @@ def train():
             for img, labels, _, _, _ in dataloader:
                 if samples_collected >= num_samples:
                     break
-                single_img = img[0:1].to(device)
+                single_img = img[0:1].to(device, memory_format=torch.channels_last)
                 single_target = labels[0:1].to(device).long()
                 output = model(single_img)
                 predictions = get_predictions(output)
@@ -908,37 +906,24 @@ def train():
         plt.close()
         return save_path
 
-    def export_model_to_onnx(
-        model,
-        output_path,
-        input_shape=(1, 1, 400, 640),
-    ):
-        export_model = model
+    def save_model_checkpoint(model, output_path):
+        """Save model checkpoint as PyTorch .pt file."""
+        save_model = model
         if hasattr(model, "_orig_mod"):
-            export_model = model._orig_mod
-        export_model.eval()
-        dummy_input = torch.randn(input_shape).to(
-            next(export_model.parameters()).device
-        )
-        torch.onnx.export(
-            export_model,
-            dummy_input,
-            output_path,
-            opset_version=14,
-            input_names=["input"],
-            output_names=["output"],
-            dynamic_axes={
-                "input": {0: "batch_size"},
-                "output": {0: "batch_size"},
-            },
-            do_constant_folding=True,
-        )
+            save_model = model._orig_mod
+
+        # Convert to contiguous format for portable checkpoint
+        save_model = save_model.to(memory_format=torch.contiguous_format)
+        save_model.eval()
+
+        torch.save(save_model.state_dict(), output_path)
+
         if not os.path.exists(output_path):
             raise RuntimeError(
-                f"ONNX export failed - file not created at {output_path}"
+                f"Model save failed - file not created at {output_path}"
             )
         print(
-            f"Model exported to ONNX: {output_path} "
+            f"Model saved: {output_path} "
             f"({os.path.getsize(output_path) / 1024 / 1024:.2f} MB)"
         )
 
@@ -1132,12 +1117,16 @@ def train():
 
     # Compile model for faster training (PyTorch 2.x)
     if torch.cuda.is_available():
-        print("Compiling model with torch.compile()...")
-        model = torch.compile(model, mode="reduce-overhead")
+        print("Converting model to channels_last memory format...")
+        model = model.to(memory_format=torch.channels_last)
+        print("Compiling model with torch.compile(mode='max-autotune')...")
+        model = torch.compile(model, mode="max-autotune")
 
     print("\nVerifying forward pass...")
     with torch.no_grad():
-        test_input = torch.randn(1, 1, IMAGE_HEIGHT, IMAGE_WIDTH).to(device)
+        test_input = torch.randn(1, 1, IMAGE_HEIGHT, IMAGE_WIDTH).to(
+            device, memory_format=torch.channels_last
+        )
         test_output = model(test_input)
         print(f"Input shape: {test_input.shape}")
         print(f"Output shape: {test_output.shape}")
@@ -1333,7 +1322,7 @@ def train():
             pbar = tqdm(trainloader, desc=f"Epoch {epoch+1}/{EPOCHS}")
             for batchdata in pbar:
                 img, labels, _, spatialWeights, maxDist = batchdata
-                data = img.to(device, non_blocking=True)
+                data = img.to(device, non_blocking=True, memory_format=torch.channels_last)
                 target = labels.to(device, non_blocking=True).long()
                 spatial_weights_gpu = spatialWeights.to(
                     device, non_blocking=True
@@ -1425,7 +1414,7 @@ def train():
             with torch.no_grad():
                 for batchdata in validloader:
                     img, labels, _, spatialWeights, maxDist = batchdata
-                    data = img.to(device, non_blocking=True)
+                    data = img.to(device, non_blocking=True, memory_format=torch.channels_last)
                     target = labels.to(device, non_blocking=True).long()
                     spatial_weights_gpu = spatialWeights.to(
                         device, non_blocking=True
@@ -1541,8 +1530,8 @@ def train():
             if miou_valid > best_valid_iou:
                 best_valid_iou = miou_valid
                 best_epoch = epoch + 1
-                best_model_path = "best_efficientvit_model.onnx"
-                export_model_to_onnx(model, best_model_path)
+                best_model_path = "best_efficientvit_model.pt"
+                save_model_checkpoint(model, best_model_path)
                 mlflow.log_artifact(best_model_path)
                 mlflow.log_metric("best_valid_iou", best_valid_iou, step=epoch)
                 print(f"New best model! Valid mIoU: {best_valid_iou:.4f}")
@@ -1573,8 +1562,8 @@ def train():
                 print("Training curves logged to MLflow")
 
             if (epoch + 1) % 10 == 0 or epoch == EPOCHS - 1:
-                checkpoint_path = f"efficientvit_model_epoch_{epoch+1}.onnx"
-                export_model_to_onnx(model, checkpoint_path)
+                checkpoint_path = f"efficientvit_model_epoch_{epoch+1}.pt"
+                save_model_checkpoint(model, checkpoint_path)
                 mlflow.log_artifact(checkpoint_path)
                 print(f"Checkpoint saved: {checkpoint_path}")
 

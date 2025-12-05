@@ -1,5 +1,4 @@
 opencv-python>=4.5.0
-onnxruntime-gpu>=1.17.0
-onnxruntime>=1.17.0
+torch>=2.0.0
 mediapipe>=0.10.0
 numpy>=1.21.0

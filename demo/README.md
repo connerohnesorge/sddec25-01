@@ -1,17 +1,34 @@
 # VisionAssist Live Demo
 
-Real-time semantic segmentation demonstration for the VisionAssist medical assistive technology project. This application performs live eye tracking and facial feature detection using the ShallowNet model with webcam input, showcasing the capabilities developed for autonomous wheelchair safety monitoring.
+Real-time semantic segmentation demonstration for the VisionAssist medical assistive technology project. This application performs live eye tracking and facial feature detection with webcam input, showcasing the capabilities developed for autonomous wheelchair safety monitoring.
+
+## Available Demos
+
+This directory contains two demo applications, each supporting different model architectures:
+
+| Script | Model | Description |
+|--------|-------|-------------|
+| `demo.py` | ShallowNet | Original demo using ShallowNet model |
+| `demo_pytorch.py` | TinyEfficientViT | PyTorch demo using TinyEfficientViT model |
+
+### Which Demo Should I Use?
+
+- **`demo.py`** - Use this with ShallowNet `.pt` checkpoint files
+- **`demo_pytorch.py`** - Use this with TinyEfficientViT `.pt` checkpoint files (from `training/train_efficientvit.py`)
+
+Both demos support the same device backends (CUDA, MPS, CPU) and have identical command-line interfaces.
 
 ## Overview
 
-The live demo captures video from a 1080p webcam, detects facial landmarks using MediaPipe, extracts the left eye region, and performs semantic segmentation inference using a trained ONNX model. Results are visualized with a green overlay indicating pupil detection, along with real-time performance metrics.
+The live demos capture video from a 1080p webcam, detect facial landmarks using MediaPipe, extract the left eye region, and perform semantic segmentation inference using PyTorch. Results are visualized with a green overlay indicating pupil detection, along with real-time performance metrics.
 
 **Key Features**:
 - Real-time semantic segmentation at 60 FPS (GPU)
 - MediaPipe facial landmark detection for eye region extraction
 - Preprocessing pipeline matching training exactly (gamma correction, CLAHE, normalization)
 - Visual feedback with status indicators and performance metrics
-- GPU acceleration with CUDA (recommended) or CPU fallback
+- GPU acceleration with CUDA (NVIDIA), MPS (Apple Silicon), or CPU fallback
+- Multiple model support: ShallowNet and TinyEfficientViT architectures
 
 ## Prerequisites
 
@@ -30,13 +47,12 @@ The live demo captures video from a 1080p webcam, detects facial landmarks using
 - **Python**: 3.10 - 3.12 (MediaPipe does not support Python 3.13+)
 - **uv**: Python package manager (included in flake.nix devshell)
 - **Operating System**: Linux, macOS, or Windows with CUDA support (for GPU)
-- **CUDA Toolkit**: Version 11.x or 12.x (for GPU acceleration)
 
 ### Trained Model
 
-A trained ONNX model file is required to run the demo. The model must have:
-- **Input shape**: `(1, 1, 400, 640)` - single-channel grayscale, 400x640 resolution
-- **Output shape**: `(1, 2, 400, 640)` - two-channel logits (background, pupil)
+A trained PyTorch model file (.pt) is required to run the demo. The model must have:
+- **Input shape**: `(1, 1, 400, 640)` - single-channel grayscale, 400x640 resolution (PyTorch tensor)
+- **Output shape**: `(1, 2, 400, 640)` - two-channel logits (background, pupil) (PyTorch tensor)
 
 ## Installation
 
@@ -62,24 +78,21 @@ cd sddec25-01-dd  # direnv will auto-activate
 ### 3. Install Python Dependencies with uv
 
 ```bash
-# CPU-only (default)
+# Install all dependencies (supports CUDA, MPS, and CPU)
 uv sync
-
-# With GPU support (NVIDIA CUDA)
-uv sync --extra gpu
 ```
 
 **Dependencies** (managed by `pyproject.toml`):
 - `opencv-python>=4.5.0` - Computer vision and image processing
-- `onnxruntime>=1.17.0` - ONNX Runtime (CPU)
-- `onnxruntime-gpu>=1.17.0` - ONNX Runtime with CUDA support (optional, via `--extra gpu`)
+- `torch>=2.0.0` - PyTorch with CUDA and MPS support
 - `mediapipe>=0.10.0` - Facial landmark detection
 - `numpy>=1.21.0` - Numerical operations
 
-**Note on ONNX Runtime**:
-- Use `uv sync --extra gpu` if you have an NVIDIA GPU with CUDA for optimal performance
-- The demo automatically selects the best available execution provider (GPU → CPU fallback)
-- The lockfile (`uv.lock`) ensures reproducible installs across machines
+**Note on Device Support**:
+- **NVIDIA GPU (CUDA)**: Automatically detected if available
+- **Apple Silicon (MPS)**: Automatically detected on M1/M2/M3 Macs
+- **CPU**: Fallback when no GPU is available
+- Use `--device cuda|mps|cpu` to force a specific device
 
 ### 4. Verify Installation
 
@@ -89,42 +102,64 @@ uv run python demo.py --help
 
 Expected output:
 ```
-usage: demo.py [-h] --model MODEL [--camera CAMERA] [--verbose]
+usage: demo.py [-h] --model MODEL [--camera CAMERA] [--device DEVICE] [--verbose]
 
 VisionAssist Live Demo - ShallowNet Semantic Segmentation
 
 optional arguments:
   -h, --help       show this help message and exit
-  --model MODEL    Path to ONNX model file (REQUIRED)
+  --model MODEL    Path to PyTorch model file (REQUIRED)
   --camera CAMERA  Camera index (default: 0)
+  --device DEVICE  Force device (cuda, mps, cpu) (default: auto)
   --verbose        Enable comprehensive logging
 ```
 
 ## Usage
 
-### Basic Usage
+### ShallowNet Demo (demo.py)
+
+Use `demo.py` for ShallowNet model checkpoints:
 
 ```bash
-uv run python demo.py --model path/to/model.onnx
+# Basic usage
+uv run python demo.py --model path/to/shallownet_model.pt
+
+# With camera selection
+uv run python demo.py --model path/to/shallownet_model.pt --camera 1
+
+# With verbose logging
+uv run python demo.py --model path/to/shallownet_model.pt --verbose
+
+# Force MPS on Apple Silicon
+uv run python demo.py --model path/to/shallownet_model.pt --device mps
 ```
 
-### With Camera Selection
+### TinyEfficientViT Demo (demo_pytorch.py)
 
-If you have multiple cameras, specify the camera index:
+Use `demo_pytorch.py` for TinyEfficientViT model checkpoints (from `training/train_efficientvit.py`):
 
 ```bash
-uv run python demo.py --model path/to/model.onnx --camera 1
+# Basic usage
+uv run python demo_pytorch.py --model path/to/efficientvit_model.pt
+
+# With camera selection
+uv run python demo_pytorch.py --model path/to/efficientvit_model.pt --camera 1
+
+# With verbose logging
+uv run python demo_pytorch.py --model path/to/efficientvit_model.pt --verbose
+
+# Force MPS on Apple Silicon
+uv run python demo_pytorch.py --model path/to/efficientvit_model.pt --device mps
 ```
+
+**Note**: The TinyEfficientViT model has different architecture parameters than ShallowNet:
+- Input shape: `(1, 1, 400, 640)` - same as ShallowNet
+- Output shape: `(1, 2, 400, 640)` - same as ShallowNet
+- Architecture: Transformer-based with ~50k parameters (vs CNN-based ShallowNet)
+
+### Common Options
 
 Camera indices typically start at 0 (default webcam). Use `--camera 1` for external webcams.
-
-### With Verbose Logging
-
-Enable detailed performance logging for debugging:
-
-```bash
-uv run python demo.py --model path/to/model.onnx --verbose
-```
 
 Verbose mode prints:
 - Frame capture times
@@ -133,19 +168,23 @@ Verbose mode prints:
 - Inference times
 - Mask statistics
 
-### Full Example
+### Full Examples
 
 ```bash
-# Run demo with external webcam and verbose logging
-uv run python demo.py --model ../training/models/shallownet_epoch50.onnx --camera 1 --verbose
+# ShallowNet with external webcam and verbose logging
+uv run python demo.py --model ../training/models/shallownet_epoch50.pt --camera 1 --verbose
+
+# TinyEfficientViT with external webcam and verbose logging
+uv run python demo_pytorch.py --model ../training/best_efficientvit_model.pt --camera 1 --verbose
 ```
 
 ## Command-Line Arguments
 
 | Argument | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `--model` | string | **Yes** | - | Path to trained ONNX model file |
+| `--model` | string | **Yes** | - | Path to trained PyTorch model file (.pt) |
 | `--camera` | integer | No | `0` | Camera device index (0 for default webcam) |
+| `--device` | string | No | `auto` | Force device ("cuda", "mps", "cpu") |
 | `--verbose` | flag | No | `False` | Enable comprehensive logging for debugging |
 
 ## Keyboard Controls
@@ -220,26 +259,34 @@ For best results, ensure the following environmental conditions:
 **Symptom**: FPS < 15, inference time > 50ms
 
 **Solutions**:
-1. **Install GPU support**:
+1. **Check GPU availability**:
    ```bash
-   uv sync --extra gpu
-   # Verify CUDA is available
-   uv run python -c "import onnxruntime as ort; print(ort.get_available_providers())"
-   ```
-   Expected output should include `'CUDAExecutionProvider'`
+   # Check CUDA (NVIDIA)
+   uv run python -c "import torch; print('CUDA:', torch.cuda.is_available())"
 
-2. **Reduce resolution**: Use a lower resolution webcam (720p) to reduce preprocessing overhead
-3. **Close background applications**: Free up CPU resources by closing unnecessary programs
-4. **Upgrade hardware**: Consider a faster CPU or adding a dedicated GPU
+   # Check MPS (Apple Silicon)
+   uv run python -c "import torch; print('MPS:', torch.backends.mps.is_available())"
+   ```
+
+2. **Force GPU if available**:
+   ```bash
+   uv run python demo.py --model model.pt --device cuda  # NVIDIA
+   uv run python demo.py --model model.pt --device mps   # Apple Silicon
+   ```
+
+3. **Reduce resolution**: Use a lower resolution webcam (720p) to reduce preprocessing overhead
+4. **Close background applications**: Free up CPU resources by closing unnecessary programs
+5. **Upgrade hardware**: Consider a faster CPU or adding a dedicated GPU
 
 **Expected performance**:
 - **GPU (NVIDIA RTX 3060 or similar)**: 60+ FPS, 5-10ms inference
+- **MPS (Apple M1/M2/M3)**: 30-60 FPS, 10-20ms inference
 - **CPU (Intel i7 or AMD Ryzen 7)**: 10-20 FPS, 50-100ms inference
 - **CPU (Older hardware)**: 5-10 FPS, 100-200ms inference
 
 ### Import Errors
 
-**Error**: `ModuleNotFoundError: No module named 'cv2'` (or `onnxruntime`, `mediapipe`)
+**Error**: `ModuleNotFoundError: No module named 'cv2'` (or `torch`, `mediapipe`)
 
 **Solutions**:
 1. Ensure you synced dependencies: `uv sync`
@@ -247,62 +294,53 @@ For best results, ensure the following environmental conditions:
 3. Check Python version: `uv run python --version` (must be 3.10-3.12)
 4. Re-sync dependencies: `rm -rf .venv && uv sync`
 
-### GPU Setup Issues
+### GPU/MPS Setup Issues
 
-**Error**: CUDA is installed but demo uses CPU
+**Symptom**: Device shows CPU when you expected GPU or MPS
 
-**Solutions**:
-1. **Verify CUDA installation**:
-   ```bash
-   nvcc --version
-   nvidia-smi
-   ```
-   Both commands should succeed and show CUDA/GPU information
+**Check Available Devices**:
+```bash
+uv run python -c "import torch; print('CUDA:', torch.cuda.is_available()); print('MPS:', torch.backends.mps.is_available())"
+```
 
-2. **Check ONNX Runtime GPU support**:
-   ```bash
-   uv run python -c "import onnxruntime as ort; print(ort.get_available_providers())"
-   ```
-   Output should include `'CUDAExecutionProvider'`
+**Solutions for NVIDIA GPU (CUDA)**:
+1. Verify CUDA installation: `nvidia-smi`
+2. Check PyTorch CUDA support: `uv run python -c "import torch; print(torch.cuda.is_available())"`
+3. Ensure compatible PyTorch version with your CUDA version
 
-3. **Reinstall with GPU support**:
-   ```bash
-   rm -rf .venv
-   uv sync --extra gpu
-   ```
+**Solutions for Apple Silicon (MPS)**:
+1. Requires macOS 12.3+ and Python 3.10-3.12
+2. Check MPS availability: `uv run python -c "import torch; print(torch.backends.mps.is_available())"`
+3. If MPS is available but not working, try: `--device mps`
 
-4. **CUDA version mismatch**:
-   - `onnxruntime-gpu` 1.17.0+ requires CUDA 11.x or 12.x
-   - Check compatibility: https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html
+**Force a Specific Device**:
+```bash
+uv run python demo.py --model model.pt --device mps  # Force MPS
+uv run python demo.py --model model.pt --device cuda  # Force CUDA
+uv run python demo.py --model model.pt --device cpu   # Force CPU
+```
 
-5. **Force CPU for testing** (re-sync without GPU extra):
-   ```bash
-   rm -rf .venv
-   uv sync
-   ```
+### Model Loading Errors
 
-### Model Validation Errors
+**Error**: `RuntimeError: Error loading model.pt`
 
-**Error**: `RuntimeError: Model input shape mismatch. Expected [-1, 1, 400, 640], got ...`
-
-**Cause**: The ONNX model does not match the expected input/output dimensions.
+**Cause**: The model file is not a valid PyTorch state dict.
 
 **Solutions**:
 1. Verify you are using a ShallowNet model trained for VisionAssist (640x400 input)
-2. Check model metadata:
+2. Check model format - must be a PyTorch state dict (.pt), not ONNX
+3. Verify file integrity: ensure the .pt file was not corrupted during download
+4. Test model loading:
    ```bash
    uv run python -c "
-   import onnxruntime as ort
-   session = ort.InferenceSession('model.onnx')
-   print('Input:', session.get_inputs()[0].shape)
-   print('Output:', session.get_outputs()[0].shape)
+   import torch
+   model = torch.load('model.pt', map_location='cpu')
+   print('Model loaded successfully')
+   print('Keys:', list(model.keys())[:5])
    "
    ```
-   Expected:
-   - Input: `[-1, 1, 400, 640]` or `[1, 1, 400, 640]`
-   - Output: `[-1, 2, 400, 640]` or `[1, 2, 400, 640]`
 
-3. Retrain the model with correct input dimensions or use a compatible model
+5. Retrain the model with correct input dimensions or use a compatible model
 
 ### Face Detection Issues
 
@@ -344,7 +382,7 @@ The model expects **640x400** grayscale input. This aspect ratio (1.6:1) is enfo
 
 ### Segmentation Output
 
-The model outputs two-channel logits `(1, 2, 400, 640)`:
+The model outputs two-channel logits as a PyTorch tensor `(1, 2, 400, 640)`:
 - **Channel 0**: Background probability
 - **Channel 1**: Pupil probability
 
@@ -352,11 +390,14 @@ The demo applies `argmax` to produce a binary mask where:
 - **0** = Background (no overlay)
 - **1** = Pupil (green overlay)
 
+PyTorch tensors are automatically moved to the appropriate device (CPU/CUDA/MPS) and converted to NumPy arrays for visualization.
+
 ### Performance Metrics
 
 - **FPS (Frames Per Second)**: Rolling average over 30 frames
-- **Inference Time**: Time spent in `session.run()`, excluding preprocessing and post-processing
+- **Inference Time**: Time spent in PyTorch model forward pass, excluding preprocessing and post-processing
 - **Total Pipeline**: Includes frame capture, face detection, preprocessing, inference, visualization
+- **Device**: Shows current execution device (cuda, mps, or cpu)
 
 Typical breakdown on GPU:
 - Frame capture: ~1-2ms
@@ -372,7 +413,7 @@ Typical breakdown on GPU:
 
 ```bash
 # High-quality demo for presentation with verbose logging
-uv run python demo.py --model ../models/shallownet_final.onnx --verbose
+uv run python demo.py --model ../models/shallownet_final.pt --verbose
 ```
 
 Expected output with `--verbose`:
@@ -380,9 +421,9 @@ Expected output with `--verbose`:
 ================================================================================
 VisionAssist Live Demo
 ================================================================================
-Model: ../models/shallownet_final.onnx
+Model: ../models/shallownet_final.pt
 Camera: 0
-Execution Provider: CUDAExecutionProvider
+Device: cuda
 
 Controls:
   ESC - Exit
@@ -391,9 +432,9 @@ Controls:
 
 Initializing camera 0...
 Camera initialized: 1920x1080 (requested 1920x1080)
-Loading ONNX model from ../models/shallownet_final.onnx...
-Using execution provider: CUDAExecutionProvider
-Model validated: input [-1, 1, 400, 640], output [-1, 2, 400, 640]
+Loading PyTorch model from ../models/shallownet_final.pt...
+Using device: cuda
+Model validated: input (1, 1, 400, 640), output (1, 2, 400, 640)
 Initializing MediaPipe Face Mesh...
 MediaPipe Face Mesh initialized
 Preprocessing initialized: gamma=0.8, CLAHE(clip=1.5, tile=(8, 8))
@@ -414,7 +455,7 @@ Frame 0: capture 1.23ms
 
 ```bash
 # Run for 30 seconds and check FPS
-uv run python demo.py --model model.onnx
+uv run python demo.py --model model.pt
 # Press ESC after 30 seconds, observe FPS counter
 ```
 
@@ -422,7 +463,7 @@ uv run python demo.py --model model.onnx
 
 ```bash
 # Enable verbose mode to inspect preprocessing values
-uv run python demo.py --model model.onnx --verbose > debug.log 2>&1
+uv run python demo.py --model model.pt --verbose > debug.log 2>&1
 # Review debug.log for anomalies in preprocessing ranges
 ```
 
@@ -430,9 +471,9 @@ uv run python demo.py --model model.onnx --verbose > debug.log 2>&1
 
 ```bash
 # Test each camera index to find the correct 1080p webcam
-uv run python demo.py --model model.onnx --camera 0  # Built-in
-uv run python demo.py --model model.onnx --camera 1  # External USB
-uv run python demo.py --model model.onnx --camera 2  # Secondary external
+uv run python demo.py --model model.pt --camera 0  # Built-in
+uv run python demo.py --model model.pt --camera 1  # External USB
+uv run python demo.py --model model.pt --camera 2  # Secondary external
 ```
 
 ## Project Context

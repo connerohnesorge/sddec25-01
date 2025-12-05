@@ -791,33 +791,24 @@ def train():
 
         return save_path
 
-    def export_model_to_onnx(model, output_path, input_shape=(1, 1, 640, 400)):
-        export_model = model
+    def save_model_checkpoint(model, output_path):
+        """Save model checkpoint as PyTorch .pt file."""
+        save_model = model
         if hasattr(model, "_orig_mod"):
-            export_model = model._orig_mod
+            save_model = model._orig_mod
 
-        export_model.eval()
-        dummy_input = torch.randn(input_shape).to(next(export_model.parameters()).device)
+        # Convert to contiguous format for portable checkpoint
+        save_model = save_model.to(memory_format=torch.contiguous_format)
+        save_model.eval()
 
-        torch.onnx.export(
-            export_model,
-            dummy_input,
-            output_path,
-            opset_version=11,
-            input_names=["input"],
-            output_names=["ellipse_params"],
-            dynamic_axes={
-                "input": {0: "batch_size"},
-                "ellipse_params": {0: "batch_size"},
-            },
-            do_constant_folding=True,
-        )
+        torch.save(save_model.state_dict(), output_path)
 
         if not os.path.exists(output_path):
-            raise RuntimeError(f"ONNX export failed - file not created at {output_path}")
-
+            raise RuntimeError(
+                f"Model save failed - file not created at {output_path}"
+            )
         print(
-            f"Model exported to ONNX: {output_path} "
+            f"Model saved: {output_path} "
             f"({os.path.getsize(output_path) / 1024 / 1024:.2f} MB)"
         )
 
@@ -1447,8 +1438,8 @@ def train():
             if miou_valid > best_valid_iou:
                 best_valid_iou = miou_valid
                 best_epoch = epoch + 1
-                best_model_path = "best_ellipse_model.onnx"
-                export_model_to_onnx(model, best_model_path)
+                best_model_path = "best_ellipse_model.pt"
+                save_model_checkpoint(model, best_model_path)
                 mlflow.log_artifact(best_model_path)
                 mlflow.log_metric("best_valid_iou", best_valid_iou, step=epoch)
                 print(f"New best model! Valid mIoU: {best_valid_iou:.4f}")
@@ -1480,8 +1471,8 @@ def train():
                 print("Training curves logged to MLflow")
 
             if (epoch + 1) % 10 == 0 or epoch == EPOCHS - 1:
-                checkpoint_path = f"ellipse_model_epoch_{epoch+1}.onnx"
-                export_model_to_onnx(model, checkpoint_path)
+                checkpoint_path = f"ellipse_model_epoch_{epoch+1}.pt"
+                save_model_checkpoint(model, checkpoint_path)
                 mlflow.log_artifact(checkpoint_path)
                 print(f"Checkpoint saved: {checkpoint_path}")
 
