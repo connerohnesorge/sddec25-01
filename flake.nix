@@ -26,6 +26,8 @@
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {
         inherit system;
+        config.allowUnfree = true;
+        config.cudaSupport = true;
       };
 
       rooted = exec:
@@ -155,6 +157,9 @@
         env.LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
           pkgs.glib
           pkgs.libGL
+          pkgs.cudaPackages.cudatoolkit
+          pkgs.cudaPackages.cudnn
+          pkgs.stdenv.cc.cc.lib
         ];
 
         shellHook =
