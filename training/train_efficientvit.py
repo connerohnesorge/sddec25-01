@@ -1102,8 +1102,8 @@ def train():
     print("Initializing TinyEfficientViT model")
     print("=" * 80)
 
-    BATCH_SIZE = 64
-    EPOCHS = 15
+    BATCH_SIZE = 128
+    EPOCHS = 1
     LEARNING_RATE = 1e-2
     NUM_WORKERS = 8
 
@@ -1599,6 +1599,6 @@ def train():
 @app.local_entrypoint()
 def main():
     print("Starting TinyEfficientViT training...")
-    result = train.local()
+    result = train.remote()
     print("Training complete!")
     return result
