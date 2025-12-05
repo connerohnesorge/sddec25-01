@@ -38,14 +38,6 @@ The system SHALL implement a lightweight decoder that produces dense predictions
 - **WHEN** encoder produces features at multiple scales
 - **THEN** decoder SHALL upsample and combine features to produce full-resolution output
 
-### Requirement: ONNX Export
-The system SHALL export the trained model to ONNX format compatible with edge deployment.
-
-#### Scenario: ONNX export
-- **WHEN** training completes with best validation mIoU
-- **THEN** best model SHALL be exported to `best_efficientvit_model.onnx`
-- **AND** file size SHALL be less than 300KB
-
 ### Requirement: MLflow Integration
 The system SHALL log training metrics, parameters, and artifacts to MLflow.
 
@@ -59,3 +51,71 @@ The system SHALL log training metrics, parameters, and artifacts to MLflow.
 - **THEN** model_type tag SHALL be "TinyEfficientViT"
 - **AND** architecture tag SHALL distinguish from ShallowNet runs
 
+### Requirement: Ellipse Model PyTorch Checkpoint Export
+The system SHALL export the trained ellipse regression model to PyTorch checkpoint format compatible with edge deployment and fine-tuning.
+
+#### Scenario: PyTorch checkpoint export
+- **WHEN** training completes with best validation mIoU
+- **THEN** best model SHALL be saved to `best_ellipse_model.pt`
+- **AND** checkpoint SHALL contain model `state_dict()`
+- **AND** model SHALL be in contiguous memory format for portability
+
+#### Scenario: Epoch checkpoints
+- **WHEN** training reaches checkpoint epochs (every 10 epochs or final epoch)
+- **THEN** checkpoint SHALL be saved as `ellipse_model_epoch_{n}.pt`
+- **AND** all checkpoints SHALL be uploaded to MLflow as artifacts
+
+#### Scenario: Compiled model handling
+- **WHEN** model is wrapped with `torch.compile()`
+- **THEN** export function SHALL unwrap to `_orig_mod` before saving
+- **AND** checkpoint SHALL contain unwrapped model weights
+
+### Requirement: Ellipse Regression Colab Notebook
+The system SHALL provide a Jupyter notebook `train_ellipse.ipynb` that trains an EllipseRegressionNet model for pupil ellipse parameter prediction, runnable in Google Colab with free GPU.
+
+#### Scenario: Notebook execution in Colab
+- **WHEN** user opens `training/train_ellipse.ipynb` in Google Colab
+- **AND** user selects GPU runtime
+- **AND** user runs all cells
+- **THEN** training completes successfully
+- **AND** trained model is exported to ONNX format
+
+#### Scenario: Dataset loading from HuggingFace
+- **WHEN** notebook executes dataset loading cells
+- **THEN** OpenEDS dataset SHALL be downloaded from `Conner/openeds-precomputed`
+- **AND** train and validation splits SHALL be available
+
+#### Scenario: Model architecture consistency
+- **WHEN** EllipseRegressionNet is instantiated in notebook
+- **THEN** model architecture SHALL match `train_ellipse.py` Modal version
+- **AND** model SHALL output 4 parameters (cx, cy, rx, ry)
+
+#### Scenario: Training visualization
+- **WHEN** training completes
+- **THEN** notebook SHALL display loss curves
+- **AND** notebook SHALL display sample prediction visualizations
+- **AND** notebook SHALL report final mIoU and error metrics
+
+### Requirement: Colab Runtime Configuration
+The notebook SHALL include setup cells that configure the Colab environment for GPU training.
+
+#### Scenario: GPU availability check
+- **WHEN** user runs the setup cells
+- **THEN** notebook SHALL verify GPU is available
+- **AND** notebook SHALL print GPU name and memory
+
+#### Scenario: Dependency installation
+- **WHEN** user runs the pip install cell
+- **THEN** required packages SHALL be installed (torch, torchvision, opencv-python, datasets, pillow, scikit-learn, tqdm, matplotlib, onnx)
+
+### Requirement: Model Export from Colab
+The notebook SHALL provide functionality to export and download the trained model.
+
+#### Scenario: ONNX export
+- **WHEN** training completes with best validation mIoU
+- **THEN** notebook SHALL export model to `best_ellipse_model.onnx`
+- **AND** notebook SHALL display file size
+
+#### Scenario: Model download
+- **WHEN** user runs the download cell
+- **THEN** trained ONNX model SHALL be downloadable from Colab

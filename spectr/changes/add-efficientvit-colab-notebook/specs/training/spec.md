@@ -27,20 +27,8 @@ The system SHALL provide a Jupyter notebook `train_efficientvit.ipynb` that trai
 - **AND** notebook SHALL display sample prediction visualizations
 - **AND** notebook SHALL report final mIoU and per-class IoU
 
-### Requirement: Colab Runtime Configuration
-The notebook SHALL include setup cells that configure the Colab environment for GPU training.
-
-#### Scenario: GPU availability check
-- **WHEN** user runs the setup cells
-- **THEN** notebook SHALL verify GPU is available
-- **AND** notebook SHALL print GPU name and memory
-
-#### Scenario: Dependency installation
-- **WHEN** user runs the pip install cell
-- **THEN** required packages SHALL be installed (torch, torchvision, opencv-python, datasets, pillow, scikit-learn, tqdm, matplotlib)
-
-### Requirement: Model Export from Colab
-The notebook SHALL provide functionality to export and download the trained model.
+### Requirement: EfficientViT Model Export
+The EfficientViT notebook SHALL provide functionality to export and download the trained segmentation model.
 
 #### Scenario: PyTorch checkpoint save
 - **WHEN** training completes with best validation mIoU
