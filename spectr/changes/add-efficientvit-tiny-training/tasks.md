@@ -1,13 +1,16 @@
 ## 1. Implementation
 
-- [ ] 1.1 Create `training/train_efficientvit_tiny_local.py` based on `train_efficientvit_local.py`
+- [ ] 1.1 Copy `training/train_efficientvit_local.py` to `train_efficientvit_tiny_local.py` (preserves all GPU optimizations)
 - [ ] 1.2 Modify model configuration to use `embed_dims=(8, 12, 18)`, `decoder_dim=8`
 - [ ] 1.3 Reduce attention heads to `num_heads=(1, 1, 1)`
-- [ ] 1.4 Update MLflow tags to identify as "TinyEfficientViT-Micro" variant
-- [ ] 1.5 Verify total parameter count is under 10,000
+- [ ] 1.4 Update checkpoint filenames to `best_efficientvit_tiny_model.pt` and `efficientvit_tiny_model_epoch_{n}.pt`
+- [ ] 1.5 Update parameter budget check from 60k to 10k
+- [ ] 1.6 Update MLflow tags to identify as "TinyEfficientViT-Micro" variant
+- [ ] 1.7 Update docstring, model_details, and run_name to reflect tiny variant
 
-## 2. Testing
+## 2. Validation
 
-- [ ] 2.1 Run training script and verify it completes without errors
-- [ ] 2.2 Verify model exports to ONNX format
-- [ ] 2.3 Confirm MLflow logs are correctly tagged
+- [ ] 2.1 Verify model instantiates and parameter count is under 10,000
+- [ ] 2.2 Verify forward pass produces correct output shape (B, 2, 400, 640)
+- [ ] 2.3 Confirm checkpoint filenames are distinct from standard model
+- [ ] 2.4 Verify GPU optimizations preserved (channels_last, torch.compile, autocast, GPU metrics)
