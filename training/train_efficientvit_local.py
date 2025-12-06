@@ -616,19 +616,18 @@ class CombinedLoss(nn.Module):
 
 
 def compute_iou_tensors(predictions, targets, num_classes=2):
-    intersection = torch.zeros(num_classes, device=predictions.device)
-    union = torch.zeros(num_classes, device=predictions.device)
-    for c in range(num_classes):
-        pred_c = predictions == c
-        target_c = targets == c
-        intersection[c] = torch.logical_and(pred_c, target_c).sum().float()
-        union[c] = torch.logical_or(pred_c, target_c).sum().float()
+    """Compute IoU tensors fully on GPU without Python loops."""
+    pred_flat = predictions.flatten()
+    target_flat = targets.flatten()
+
+    classes = torch.arange(num_classes, device=predictions.device).view(-1, 1)
+    pred_mask = pred_flat.unsqueeze(0) == classes  # [num_classes, N]
+    target_mask = target_flat.unsqueeze(0) == classes  # [num_classes, N]
+
+    intersection = (pred_mask & target_mask).sum(dim=1).float()
+    union = (pred_mask | target_mask).sum(dim=1).float()
+
     return intersection, union
-
-
-def finalize_iou(total_intersection, total_union):
-    iou_per_class = (total_intersection / total_union.clamp(min=1)).cpu().numpy()
-    return float(np.mean(iou_per_class)), iou_per_class.tolist()
 
 
 def get_predictions(output):
@@ -1477,24 +1476,37 @@ def train(args):
                 train_intersection += batch_intersection
                 train_union += batch_union
 
-            miou_train, per_class_ious_train = finalize_iou(
-                train_intersection, train_union
-            )
-            bg_iou_train, pupil_iou_train = (
-                per_class_ious_train[0],
-                per_class_ious_train[1],
-            )
-            loss_train: float = (train_loss_sum / train_batch_count).item()
-            ce_loss_train: float = (train_ce_sum / train_batch_count).item()
-            dice_loss_train: float = (train_dice_sum / train_batch_count).item()
-            surface_loss_train: float = (train_surface_sum / train_batch_count).item()
+            iou_per_class_train = train_intersection / train_union.clamp(min=1)
+            miou_train_gpu = iou_per_class_train.mean()
+
+            train_metrics_gpu = torch.stack([
+                train_loss_sum / train_batch_count,
+                train_ce_sum / train_batch_count,
+                train_dice_sum / train_batch_count,
+                train_surface_sum / train_batch_count,
+                miou_train_gpu,
+                iou_per_class_train[0],  # background IoU
+                iou_per_class_train[1],  # pupil IoU
+                alpha[epoch],
+            ])
+
+            (
+                loss_train,
+                ce_loss_train,
+                dice_loss_train,
+                surface_loss_train,
+                miou_train,
+                bg_iou_train,
+                pupil_iou_train,
+                alpha_val,
+            ) = train_metrics_gpu.cpu().tolist()
 
             train_metrics["loss"].append(loss_train)
             train_metrics["iou"].append(miou_train)
             train_metrics["ce_loss"].append(ce_loss_train)
             train_metrics["dice_loss"].append(dice_loss_train)
             train_metrics["surface_loss"].append(surface_loss_train)
-            train_metrics["alpha"].append(alpha[epoch].item())
+            train_metrics["alpha"].append(alpha_val)
             train_metrics["lr"].append(optimizer.param_groups[0]["lr"])
             train_metrics["background_iou"].append(bg_iou_train)
             train_metrics["pupil_iou"].append(pupil_iou_train)
@@ -1555,17 +1567,29 @@ def train(args):
                     valid_intersection += batch_intersection
                     valid_union += batch_union
 
-            miou_valid, per_class_ious_valid = finalize_iou(
-                valid_intersection, valid_union
-            )
-            bg_iou_valid, pupil_iou_valid = (
-                per_class_ious_valid[0],
-                per_class_ious_valid[1],
-            )
-            loss_valid: float = (valid_loss_sum / valid_batch_count).item()
-            ce_loss_valid: float = (valid_ce_sum / valid_batch_count).item()
-            dice_loss_valid: float = (valid_dice_sum / valid_batch_count).item()
-            surface_loss_valid: float = (valid_surface_sum / valid_batch_count).item()
+            iou_per_class_valid = valid_intersection / valid_union.clamp(min=1)
+            miou_valid_gpu = iou_per_class_valid.mean()
+
+            valid_metrics_gpu = torch.stack([
+                valid_loss_sum / valid_batch_count,
+                valid_ce_sum / valid_batch_count,
+                valid_dice_sum / valid_batch_count,
+                valid_surface_sum / valid_batch_count,
+                miou_valid_gpu,
+                iou_per_class_valid[0],  # background IoU
+                iou_per_class_valid[1],  # pupil IoU
+            ])
+
+            # Single CPU transfer for all validation metrics
+            (
+                loss_valid,
+                ce_loss_valid,
+                dice_loss_valid,
+                surface_loss_valid,
+                miou_valid,
+                bg_iou_valid,
+                pupil_iou_valid,
+            ) = valid_metrics_gpu.cpu().tolist()
 
             valid_metrics["loss"].append(loss_valid)
             valid_metrics["iou"].append(miou_valid)
@@ -1593,7 +1617,7 @@ def train(args):
                         "valid_background_iou": bg_iou_valid,
                         "valid_pupil_iou": pupil_iou_valid,
                         "learning_rate": optimizer.param_groups[0]["lr"],
-                        "alpha": alpha[epoch].item(),
+                        "alpha": alpha_val,  # Reuse from training metrics (no extra GPU trip)
                     },
                     step=epoch,
                 )
