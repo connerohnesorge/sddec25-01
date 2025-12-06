@@ -1005,6 +1005,14 @@ class IrisDataset(Dataset):
         self.split = split
         self.gamma_table = 255.0 * (np.linspace(0, 1, 256) ** 0.8)
         self.dataset = hf_dataset
+        self.has_preprocessed_column = "preprocessed" in hf_dataset.column_names
+
+    def is_preprocessed(self):
+        """Check if dataset samples are preprocessed."""
+        if not self.has_preprocessed_column:
+            return False
+        # Check first sample
+        return self.dataset[0].get("preprocessed", False)
 
     def __len__(self):
         return len(self.dataset)
@@ -1025,7 +1033,13 @@ class IrisDataset(Dataset):
         )
         filename = sample["filename"]
 
-        pilimg = cv2.LUT(image, self.gamma_table)
+        # Check if sample is preprocessed (skip gamma correction if so)
+        is_preprocessed = self.has_preprocessed_column and sample.get("preprocessed", False)
+
+        if is_preprocessed:
+            pilimg = image  # Already preprocessed
+        else:
+            pilimg = cv2.LUT(image, self.gamma_table)
         if self.transform is not None and self.split == "train":
             if random.random() < 0.2:
                 pilimg = Line_augment()(np.array(pilimg))
@@ -1141,7 +1155,7 @@ def parse_args():
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=64,
+        default=32,
         help="Batch size for training and validation",
     )
     parser.add_argument(
@@ -1332,6 +1346,11 @@ def train(args):
         transform=transform,
     )
 
+    # Check if dataset is preprocessed (affects GPU CLAHE application)
+    is_preprocessed_dataset = train_dataset.is_preprocessed()
+    if is_preprocessed_dataset:
+        print("Dataset is preprocessed - skipping GPU CLAHE application")
+
     print(f"Training samples: {len(train_dataset)}")
     print(f"Validation samples: {len(valid_dataset)}")
 
@@ -1502,10 +1521,11 @@ def train(args):
             for batchdata in pbar:
                 img, labels, _, spatialWeights, maxDist = batchdata
                 data = img.to(device, non_blocking=True, memory_format=memory_format)
-                # Apply GPU CLAHE (clip_limit=1.5 matches original cv2 settings)
-                data = (data + 0.5).clamp(0, 1)  # Denormalize to [0, 1]
-                data = K_enhance.equalize_clahe(data, clip_limit=1.5, grid_size=(8, 8))
-                data = data - 0.5  # Renormalize to [-0.5, 0.5]
+                if not is_preprocessed_dataset:
+                    # Apply GPU CLAHE only for non-preprocessed data
+                    data = (data + 0.5).clamp(0, 1)  # Denormalize to [0, 1]
+                    data = K_enhance.equalize_clahe(data, clip_limit=1.5, grid_size=(8, 8))
+                    data = data - 0.5  # Renormalize to [-0.5, 0.5]
                 target = labels.to(device, non_blocking=True).long()
                 spatial_weights_gpu = spatialWeights.to(
                     device,
@@ -1576,10 +1596,11 @@ def train(args):
                         non_blocking=True,
                         memory_format=memory_format,
                     )
-                    # Apply GPU CLAHE (same as training)
-                    data = (data + 0.5).clamp(0, 1)
-                    data = K_enhance.equalize_clahe(data, clip_limit=1.5, grid_size=(8, 8))
-                    data = data - 0.5
+                    if not is_preprocessed_dataset:
+                        # Apply GPU CLAHE only for non-preprocessed data
+                        data = (data + 0.5).clamp(0, 1)
+                        data = K_enhance.equalize_clahe(data, clip_limit=1.5, grid_size=(8, 8))
+                        data = data - 0.5
                     target = labels.to(device, non_blocking=True).long()
                     spatial_weights_gpu = spatialWeights.to(
                         device, non_blocking=True

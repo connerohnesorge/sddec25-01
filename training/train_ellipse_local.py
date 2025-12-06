@@ -801,6 +801,7 @@ class IrisDataset(Dataset):
         self.clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
         self.gamma_table = 255.0 * (np.linspace(0, 1, 256) ** 0.8)
         self.dataset = hf_dataset
+        self.has_preprocessed_column = "preprocessed" in hf_dataset.column_names
 
     def __len__(self):
         return len(self.dataset)
@@ -828,15 +829,26 @@ class IrisDataset(Dataset):
             [cx_norm, cy_norm, rx_norm, ry_norm], dtype=torch.float32
         )
 
-        pilimg = cv2.LUT(image, self.gamma_table)
+        # Check if sample is already preprocessed
+        is_preprocessed = self.has_preprocessed_column and sample.get("preprocessed", False)
 
+        if is_preprocessed:
+            pilimg = image  # Already preprocessed, skip gamma correction
+        else:
+            pilimg = cv2.LUT(image, self.gamma_table)
+
+        # Stochastic augmentations still apply for training (even for preprocessed data)
         if self.transform is not None and self.split == "train":
             if random.random() < 0.2:
                 pilimg = Line_augment()(np.array(pilimg))
             if random.random() < 0.2:
                 pilimg = Gaussian_blur()(np.array(pilimg))
 
-        img = self.clahe.apply(np.array(np.uint8(pilimg)))
+        # CLAHE only for non-preprocessed data
+        if not is_preprocessed:
+            img = self.clahe.apply(np.array(np.uint8(pilimg)))
+        else:
+            img = np.array(np.uint8(pilimg))
         img = Image.fromarray(img)
         label_pil = Image.fromarray(label)
 

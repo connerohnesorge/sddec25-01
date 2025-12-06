@@ -997,6 +997,8 @@ class IrisDataset(Dataset):
         )
         self.gamma_table = 255.0 * (np.linspace(0, 1, 256) ** 0.8)
         self.dataset = hf_dataset
+        # Detect if dataset has preprocessed column for conditional preprocessing
+        self.has_preprocessed_column = "preprocessed" in hf_dataset.column_names
 
     def __len__(self):
         return len(self.dataset)
@@ -1017,13 +1019,31 @@ class IrisDataset(Dataset):
         )
         filename = sample["filename"]
 
-        pilimg = cv2.LUT(image, self.gamma_table)
+        # Check if sample is already preprocessed (gamma + CLAHE applied)
+        is_preprocessed = (
+            self.has_preprocessed_column and sample.get("preprocessed", False)
+        )
+
+        if is_preprocessed:
+            # Image already has gamma + CLAHE applied, use directly
+            pilimg = image
+        else:
+            # Apply deterministic gamma correction
+            pilimg = cv2.LUT(image, self.gamma_table)
+
+        # Stochastic augmentations (applied regardless of preprocessing status)
         if self.transform is not None and self.split == "train":
             if random.random() < 0.2:
                 pilimg = Line_augment()(np.array(pilimg))
             if random.random() < 0.2:
                 pilimg = Gaussian_blur()(np.array(pilimg))
-        img = self.clahe.apply(np.array(np.uint8(pilimg)))
+
+        if is_preprocessed:
+            # Already preprocessed, just ensure correct dtype
+            img = np.array(np.uint8(pilimg))
+        else:
+            # Apply CLAHE for non-preprocessed data
+            img = self.clahe.apply(np.array(np.uint8(pilimg)))
         img = Image.fromarray(img)
         label_pil = Image.fromarray(label)
 
