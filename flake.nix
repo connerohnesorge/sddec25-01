@@ -56,6 +56,18 @@
           description = "Compile LaTeX document";
           deps = with pkgs; [texliveFull];
         };
+        precompute = {
+          exec = ''
+            uv run --package precompute precompute "$@"
+          '';
+          description = "Precompute Dataset with preprocessing.";
+        };
+        precompute-inf = {
+          exec = ''
+            uv run --package precompute_inf precompute_inf "$@"
+          '';
+          description = "Precompute Dataset with preprocessing.";
+        };
         ltx-watch = {
           exec = ''
             if [ -z "$1" ]; then

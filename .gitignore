@@ -58,3 +58,5 @@ build/
 *.bak0
 *.pt
 __pycache__/
+*.npz
+precompute_output/
