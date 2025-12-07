@@ -31,7 +31,7 @@ wheels = [
 [[package]]
 name = "demo-tiny-effvit"
 version = "0.1.0"
-source = { virtual = "apps/demo_tiny_effvit" }
+source = { editable = "apps/demo_tiny_effvit" }
 
 [package.metadata]
 
@@ -408,7 +408,7 @@ wheels = [
 [[package]]
 name = "precompute"
 version = "0.1.0"
-source = { virtual = "apps/precompute" }
+source = { editable = "apps/precompute" }
 dependencies = [
     { name = "numpy" },
     { name = "opencv-python" },
@@ -427,7 +427,7 @@ requires-dist = [
 [[package]]
 name = "precompute-inf"
 version = "0.1.0"
-source = { virtual = "apps/precompute_inf" }
+source = { editable = "apps/precompute_inf" }
 dependencies = [
     { name = "numpy" },
     { name = "opencv-python" },
@@ -605,7 +605,7 @@ wheels = [
 [[package]]
 name = "train-tiny-effvit"
 version = "0.1.0"
-source = { virtual = "apps/train_tiny_effvit" }
+source = { editable = "apps/train_tiny_effvit" }
 
 [[package]]
 name = "triton"
