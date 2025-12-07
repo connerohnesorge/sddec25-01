@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TODO: Add purpose description
+Define the architecture and implementation requirements for the EfficientViT semantic segmentation model used for eye image analysis in the ellipse training framework.
 
 ## Requirements
 
