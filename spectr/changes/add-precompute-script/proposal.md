@@ -22,9 +22,11 @@ This change adds a script that downloads the raw OpenEDS dataset from Kaggle (`s
 - Affected specs: `training`
 - Affected code:
   - `training/precompute.py` (new)
-  - `training/train_efficientvit.py`
-  - `training/train_efficientvit_local.py`
-  - `training/train_efficientvit_tiny_local.py`
-  - `training/train_ellipse.py`
-  - `training/train_ellipse_local.py`
-- External: New HuggingFace dataset `Conner/sddec25-01` with fully preprocessed images and ellipse parameters
+  - `training/train_efficientvit.py` (already has preprocessed detection)
+  - `training/train_efficientvit_local.py` (already has preprocessed detection)
+  - `training/train_efficientvit_tiny_local.py` (already has preprocessed detection + GPU CLAHE skip)
+  - `training/train_ellipse.py` (needs precomputed ellipse params support)
+  - `training/train_ellipse_local.py` (needs precomputed ellipse params support)
+  - `training/train.py` (ShallowNet - needs preprocessed detection added)
+  - `training/README.md` (update docs)
+- External: New HuggingFace dataset `Conner/sddec25-01` with fully preprocessed images, binarized labels, and ellipse parameters

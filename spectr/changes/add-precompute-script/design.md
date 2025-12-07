@@ -41,11 +41,27 @@ binary_label = (raw_label == 3).astype(np.uint8)
 **Rationale:** Models use `num_classes=2` and `F.one_hot(target, num_classes=2)`. Only pupil segmentation is needed.
 
 ### Decision: Preprocessing Pipeline Order
-Apply preprocessing in this order:
-1. Gamma correction (gamma=0.8 via LUT): `255.0 * (np.linspace(0, 1, 256) ** 0.8)`
-2. CLAHE (clipLimit=1.5, tileGridSize=8x8): `cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))`
+Apply preprocessing in this exact order:
 
-**Rationale:** Matches existing training script order in `IrisDataset.__getitem__`. Uses CPU CLAHE for determinism and portability.
+```python
+# 1. Create gamma LUT (float64)
+gamma_table = 255.0 * (np.linspace(0, 1, 256) ** 0.8)
+
+# 2. Apply gamma correction via LUT (returns float64)
+gamma_corrected = cv2.LUT(image, gamma_table)
+
+# 3. Convert to uint8 (CRITICAL: must happen before CLAHE)
+gamma_uint8 = np.uint8(gamma_corrected)
+
+# 4. Apply CLAHE on uint8 image
+clahe = cv2.createCLAHE(clipLimit=1.5, tileGridSize=(8, 8))
+preprocessed = clahe.apply(gamma_uint8)
+```
+
+**Rationale:** Matches exact training script behavior in `IrisDataset.__getitem__`:
+- `cv2.LUT` returns float64 when given float64 LUT
+- Training scripts convert to uint8 with `np.uint8(pilimg)` before CLAHE
+- CLAHE expects and returns uint8
 
 ### Decision: Spatial Weights Computation (Industry Standard)
 Compute boundary weights using morphological gradient:
@@ -164,6 +180,24 @@ The split is determined by the Kaggle dataset folder structure.
 | Ellipse fit failures | Use moments-based fallback, log statistics |
 | Empty mask samples | Skip and log count of excluded samples |
 | Signed distance overflow | Normalize by image diagonal |
+
+### Decision: GPU CLAHE Compatibility
+`train_efficientvit_tiny_local.py` uses GPU CLAHE (Kornia) instead of CPU CLAHE:
+
+```python
+# GPU CLAHE in training loop (NOT in dataset)
+data = (data + 0.5).clamp(0, 1)  # Denormalize from [-0.5, 0.5] to [0, 1]
+data = K_enhance.equalize_clahe(data, clip_limit=1.5, grid_size=(8, 8))
+data = data - 0.5  # Renormalize to [-0.5, 0.5]
+```
+
+When using preprocessed data, this GPU CLAHE step MUST be skipped (already handled in training script via `is_preprocessed_dataset` check).
+
+**Note:** CPU CLAHE (OpenCV) and GPU CLAHE (Kornia) may have minor numerical differences due to:
+- Different quantization (uint8 vs float)
+- Different implementation details
+
+The precompute script uses CPU CLAHE as the source of truth. Training scripts using GPU CLAHE will skip their CLAHE step when using preprocessed data.
 
 ## Stochastic Augmentations (Runtime Only)
 
