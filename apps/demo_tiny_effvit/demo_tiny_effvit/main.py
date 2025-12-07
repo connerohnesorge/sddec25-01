@@ -29,7 +29,7 @@ import numpy as np
 import platform
 import torch
 
-from tiny_effvit import TinyEfficientViTSeg
+from effvit import TinyEfficientViTSeg
 
 
 def get_device(requested_device: str | None = None) -> torch.device:

@@ -756,7 +756,19 @@ wheels = [
 [[package]]
 name = "effvit"
 version = "0.1.0"
-source = { virtual = "packages/effvit" }
+source = { editable = "packages/effvit" }
+dependencies = [
+    { name = "numpy" },
+    { name = "torch" },
+    { name = "torchvision" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy", specifier = ">=1.21.0" },
+    { name = "torch", specifier = ">=2.0.0", index = "https://download.pytorch.org/whl/cu124" },
+    { name = "torchvision", specifier = ">=0.15.0", index = "https://download.pytorch.org/whl/cu124" },
+]
 
 [[package]]
 name = "ellipse"

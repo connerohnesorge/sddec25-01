@@ -48,7 +48,7 @@ from datasets import load_dataset
 
 import mlflow
 
-from tiny_effvit import TinyEfficientViTSeg
+from effvit import TinyEfficientViTSeg
 
 
 class CombinedLoss(nn.Module):

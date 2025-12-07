@@ -5,7 +5,7 @@ description = "Train tiny effvit model for precomputations builtin"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "tiny_effvit",
+    "effvit",
     "modal>=0.64.0",
     "torch>=2.0.0",
     "numpy>=1.21.0",
@@ -56,6 +56,6 @@ name = "pypi"
 url = "https://pypi.org/simple"
 
 [tool.uv.sources]
-tiny_effvit = { workspace = true }
+effvit = { workspace = true }
 torch = { index = "pytorch-cu124" }
 torchvision = { index = "pytorch-cu124" }
