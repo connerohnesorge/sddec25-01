@@ -3,7 +3,7 @@ name = "train-tiny-effvit-inf"
 version = "0.1.0"
 description = "Train tiny effvit model for precomputations builtin"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "tiny_effvit",
     "modal>=0.64.0",

@@ -1232,6 +1232,10 @@ def train(args):
         print("=" * 80)
 
 
-if __name__ == "__main__":
+def main():
     args = parse_args()
     train(args)
+
+
+if __name__ == "__main__":
+    main()
