@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "hf_dataset",
+    "kagglehub>=0.3.13",
     "numpy>=2.3.5",
     "opencv-python>=4.11.0.86",
     "scipy>=1.16.3",

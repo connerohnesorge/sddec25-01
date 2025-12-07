@@ -2775,6 +2775,7 @@ version = "0.1.0"
 source = { editable = "apps/precompute" }
 dependencies = [
     { name = "hf-dataset" },
+    { name = "kagglehub" },
     { name = "numpy" },
     { name = "opencv-python" },
     { name = "scipy" },
@@ -2784,6 +2785,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "hf-dataset", editable = "packages/hf_dataset" },
+    { name = "kagglehub", specifier = ">=0.3.13" },
     { name = "numpy", specifier = ">=2.3.5" },
     { name = "opencv-python", specifier = ">=4.11.0.86" },
     { name = "scipy", specifier = ">=1.16.3" },
