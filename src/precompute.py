@@ -1,16 +1,7 @@
-"""Precompute OpenEDS dataset and upload to HuggingFace Hub.
-This script downloads the OpenEDS dataset from Kaggle, computes binary labels,
-spatial weights, and distance maps, then packages and uploads to HuggingFace Hub.
-Uses Parquet sharding to minimize memory usage (processes in chunks).
-Usage:
-    python precompute_dataset.py --hf-repo "username/openeds-precomputed" --hf-token "hf_xxx"
-"""
-
 import argparse
 import gc
 import os
-import shutil
-from typing import Generator
+
 import cv2
 import numpy as np
 import pyarrow as pa
@@ -21,13 +12,11 @@ from scipy.ndimage import distance_transform_edt as distance
 from tqdm import tqdm
 
 CHUNK_SIZE = 500
-
 IMAGE_HEIGHT = 400
 IMAGE_WIDTH = 640
 
 
 def one_hot2dist(posmask: np.ndarray) -> np.ndarray:
-
     assert len(posmask.shape) == 2, f"Expected 2D mask, got shape {posmask.shape}"
     h, w = posmask.shape
     res = np.zeros_like(posmask, dtype=np.float32)
@@ -46,89 +35,151 @@ def compute_spatial_weights(label_binary: np.ndarray) -> np.ndarray:
 
 
 def compute_distance_map(label_binary: np.ndarray) -> np.ndarray:
-
     distMap = np.stack(
         [one_hot2dist(label_binary == 0), one_hot2dist(label_binary == 1)], axis=0
     )
     return distMap.astype(np.float32)
 
 
+def gaussian_blur(img: np.ndarray) -> np.ndarray:
+    """Apply Gaussian blur with random sigma 2-7, kernel (7,7)."""
+    sigma = np.random.randint(2, 7)
+    return cv2.GaussianBlur(img, (7, 7), sigma)
+
+
+def line_augment(img: np.ndarray) -> np.ndarray:
+    """Draw 1-10 random white lines to simulate specular reflections."""
+    h, w = img.shape[:2]
+    yc, xc = (0.3 + 0.4 * np.random.rand()) * h, (0.3 + 0.4 * np.random.rand()) * w
+    aug_img = np.copy(img)
+    num_lines = np.random.randint(1, 10)
+    for _ in range(num_lines):
+        theta = np.pi * np.random.rand()
+        x1 = xc - 50 * np.random.rand() * (1 if np.random.rand() < 0.5 else -1)
+        y1 = (x1 - xc) * np.tan(theta) + yc
+        x2 = xc - (150 * np.random.rand() + 50) * (1 if np.random.rand() < 0.5 else -1)
+        y2 = (x2 - xc) * np.tan(theta) + yc
+        aug_img = cv2.line(aug_img, (int(x1), int(y1)), (int(x2), int(y2)), 255, 4)
+    return aug_img.astype(np.uint8)
+
+
+def horizontal_flip(
+    image: np.ndarray,
+    label: np.ndarray,
+    spatial_weights: np.ndarray,
+    dist_map: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Flip all arrays horizontally. dist_map is [2, H, W] so flip axis=2."""
+    return (
+        np.fliplr(image).copy(),
+        np.fliplr(label).copy(),
+        np.fliplr(spatial_weights).copy(),
+        np.flip(dist_map, axis=2).copy(),
+    )
+
+
 def download_kaggle_dataset(output_path: str, username: str, key: str) -> str:
-
-    if os.path.exists(output_path):
-        print(f"Dataset already exists at: {output_path}")
-
-        possible_paths = [
-            output_path,
-            os.path.join(output_path, "openEDS"),
-            os.path.join(output_path, "openEDS", "openEDS"),
-        ]
-        for path in possible_paths:
-            train_path = os.path.join(path, "train", "images")
-            if os.path.exists(train_path):
-                return path
-        raise ValueError(f"Could not find train/images in {output_path}")
-
-    os.makedirs(os.path.expanduser("~/.kaggle"), exist_ok=True)
-    kaggle_config = os.path.expanduser("~/.kaggle/kaggle.json")
-    with open(kaggle_config, "w", encoding="utf-8") as f:
-        f.write(f'{{"username":"{username}","key":"{key}"}}')
-    os.chmod(kaggle_config, 0o600)
-
-    print("Downloading dataset from Kaggle...")
-    result = os.system("kaggle datasets download -d soumicksarker/openeds-dataset")
-    if result != 0:
-        raise RuntimeError("Kaggle download failed. Check credentials.")
-
-    print("Unzipping dataset...")
-    os.system(f"unzip -q openeds-dataset.zip -d {output_path}")
-    print(f"Dataset extracted to: {output_path}")
-
     possible_paths = [
         output_path,
         os.path.join(output_path, "openEDS"),
         os.path.join(output_path, "openEDS", "openEDS"),
     ]
+    # Check if dataset already exists and contains the expected data
+    if os.path.exists(output_path):
+        for path in possible_paths:
+            train_path = os.path.join(path, "train", "images")
+            if os.path.exists(train_path):
+                print(f"Dataset already exists at: {path}")
+                return path
+        print(f"Directory {output_path} exists but doesn't contain expected data, downloading...")
+
+    # Set credentials via environment variables for kagglehub
+    os.environ["KAGGLE_USERNAME"] = username
+    os.environ["KAGGLE_KEY"] = key
+
+    import kagglehub
+
+    print("Downloading dataset from Kaggle...")
+    dataset_path = kagglehub.dataset_download("soumicksarker/openeds-dataset")
+    print(f"Dataset downloaded to: {dataset_path}")
+
+    # kagglehub downloads to its own cache, check there first
+    possible_paths = [
+        dataset_path,
+        os.path.join(dataset_path, "openEDS"),
+        os.path.join(dataset_path, "openEDS", "openEDS"),
+    ]
     for path in possible_paths:
         train_path = os.path.join(path, "train", "images")
         if os.path.exists(train_path):
             return path
-    raise ValueError(f"Could not find train/images in {output_path}")
+    raise ValueError(f"Could not find train/images in {dataset_path}")
 
 
 def process_single_sample(
     images_path: str, labels_path: str, filename: str
-) -> dict | None:
-
+) -> list[dict] | None:
+    """Process one sample and return original + 3 augmented variants."""
     basename = filename.replace(".png", "")
-
     img_path = os.path.join(images_path, filename)
     img = PILImage.open(img_path).convert("L")
     H, W = img.width, img.height
-
     label_path = os.path.join(labels_path, basename + ".npy")
     if not os.path.exists(label_path):
         return None
     label = np.load(label_path)
     label = np.resize(label, (W, H))
-
     label_binary = np.zeros_like(label, dtype=np.uint8)
     label_binary[label == 3] = 1
-
     spatial_weights = compute_spatial_weights(label_binary)
-
     dist_map = compute_distance_map(label_binary)
-    return {
-        "image": np.array(img),
+    image = np.array(img)
+
+    samples = []
+
+    # 1. Original (no augmentation)
+    samples.append({
+        "image": image,
         "label": label_binary,
         "spatial_weights": spatial_weights,
         "dist_map": dist_map,
         "filename": basename,
-    }
+    })
+
+    # 2. Horizontal flip (affects ALL arrays)
+    flip_img, flip_label, flip_sw, flip_dm = horizontal_flip(
+        image, label_binary, spatial_weights, dist_map
+    )
+    samples.append({
+        "image": flip_img,
+        "label": flip_label,
+        "spatial_weights": flip_sw,
+        "dist_map": flip_dm,
+        "filename": f"{basename}_flip",
+    })
+
+    # 3. Gaussian blur (only image changes)
+    samples.append({
+        "image": gaussian_blur(image),
+        "label": label_binary,
+        "spatial_weights": spatial_weights,
+        "dist_map": dist_map,
+        "filename": f"{basename}_blur",
+    })
+
+    # 4. Line augment (only image changes)
+    samples.append({
+        "image": line_augment(image),
+        "label": label_binary,
+        "spatial_weights": spatial_weights,
+        "dist_map": dist_map,
+        "filename": f"{basename}_lines",
+    })
+
+    return samples
 
 
 def process_split_to_parquet(dataset_path: str, split: str, output_dir: str) -> str:
-
     split_path = os.path.join(dataset_path, split)
     images_path = os.path.join(split_path, "images")
     labels_path = os.path.join(split_path, "labels")
@@ -136,28 +187,23 @@ def process_split_to_parquet(dataset_path: str, split: str, output_dir: str) -> 
         raise ValueError(f"Images path not found: {images_path}")
     if not os.path.exists(labels_path):
         raise ValueError(f"Labels path not found: {labels_path}")
-
     parquet_dir = os.path.join(output_dir, split)
     os.makedirs(parquet_dir, exist_ok=True)
-
     image_files = sorted([f for f in os.listdir(images_path) if f.endswith(".png")])
     total_images = len(image_files)
     print(f"Found {total_images} images in {split} split")
-
     shard_idx = 0
     processed_count = 0
     skipped_shards = 0
     for chunk_start in range(0, total_images, CHUNK_SIZE):
         chunk_end = min(chunk_start + CHUNK_SIZE, total_images)
         chunk_files = image_files[chunk_start:chunk_end]
-
         parquet_path = os.path.join(parquet_dir, f"shard_{shard_idx:05d}.parquet")
         if os.path.exists(parquet_path):
             print(f"Shard {shard_idx} already exists, skipping...")
             skipped_shards += 1
             shard_idx += 1
             continue
-
         chunk_data = {
             "image": [],
             "label": [],
@@ -166,18 +212,17 @@ def process_split_to_parquet(dataset_path: str, split: str, output_dir: str) -> 
             "filename": [],
         }
         for filename in tqdm(chunk_files, desc=f"{split} shard {shard_idx}"):
-            sample = process_single_sample(images_path, labels_path, filename)
-            if sample is not None:
-
-                chunk_data["image"].append(sample["image"].flatten())
-                chunk_data["label"].append(sample["label"].flatten())
-                chunk_data["spatial_weights"].append(
-                    sample["spatial_weights"].flatten()
-                )
-                chunk_data["dist_map"].append(sample["dist_map"].flatten())
-                chunk_data["filename"].append(sample["filename"])
-                processed_count += 1
-
+            samples = process_single_sample(images_path, labels_path, filename)
+            if samples is not None:
+                for sample in samples:
+                    chunk_data["image"].append(sample["image"].flatten())
+                    chunk_data["label"].append(sample["label"].flatten())
+                    chunk_data["spatial_weights"].append(
+                        sample["spatial_weights"].flatten()
+                    )
+                    chunk_data["dist_map"].append(sample["dist_map"].flatten())
+                    chunk_data["filename"].append(sample["filename"])
+                    processed_count += 1
         if chunk_data["filename"]:
             table = pa.table(
                 {
@@ -190,7 +235,6 @@ def process_split_to_parquet(dataset_path: str, split: str, output_dir: str) -> 
             )
             pq.write_table(table, parquet_path)
             print(f"Saved shard {shard_idx} with {len(chunk_data['filename'])} samples")
-
         del chunk_data
         gc.collect()
         shard_idx += 1
@@ -201,7 +245,6 @@ def process_split_to_parquet(dataset_path: str, split: str, output_dir: str) -> 
 
 
 def process_all_splits(dataset_path: str, output_dir: str) -> str:
-
     print("Processing training split...")
     train_parquet_dir = process_split_to_parquet(dataset_path, "train", output_dir)
     print(f"Training Parquet saved to: {train_parquet_dir}")
@@ -212,15 +255,12 @@ def process_all_splits(dataset_path: str, output_dir: str) -> str:
 
 
 def upload_parquet_to_huggingface(parquet_dir: str, repo_id: str, token: str) -> None:
-
     print(f"Uploading parquet files to HuggingFace Hub: {repo_id}")
     api = HfApi()
-
     try:
         api.create_repo(repo_id, repo_type="dataset", token=token, exist_ok=True)
     except Exception as e:
         print(f"Warning: Could not create repo: {e}")
-
     train_dir = os.path.join(parquet_dir, "train")
     if os.path.exists(train_dir):
         print("Uploading train split...")
@@ -232,7 +272,6 @@ def upload_parquet_to_huggingface(parquet_dir: str, repo_id: str, token: str) ->
             token=token,
         )
         print("Train split uploaded.")
-
     valid_dir = os.path.join(parquet_dir, "validation")
     if os.path.exists(valid_dir):
         print("Uploading validation split...")
@@ -293,7 +332,6 @@ def main():
     args = parser.parse_args()
     parquet_output_dir = os.path.join(args.output_dir, "parquet_shards")
     if not args.upload_only:
-
         print("=" * 80)
         print("Step 1: Downloading OpenEDS dataset from Kaggle")
         print("=" * 80)
@@ -301,7 +339,6 @@ def main():
             args.output_dir, args.kaggle_username, args.kaggle_key
         )
         print(f"Dataset path: {dataset_path}")
-
         print("\n" + "=" * 80)
         print("Step 2: Processing dataset splits (Parquet shard, memory efficient)")
         print("=" * 80)
@@ -312,7 +349,6 @@ def main():
         print("Skipping download and processing (--upload-only)")
         print("=" * 80)
         print(f"Using existing parquet files from: {parquet_output_dir}")
-
     if not args.local_only:
         print("\n" + "=" * 80)
         print("Step 3: Uploading to HuggingFace Hub")
