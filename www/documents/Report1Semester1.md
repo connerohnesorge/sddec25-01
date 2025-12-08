@@ -7,10 +7,10 @@
 
 ## Team Members/Role
 
-- **Joseph Metzen** – Kria board Specialist Engineer
-- **Tyler Schaefer** – TBD
-- **Conner Ohnesorge** – Machine Learning Integration Engineer
-- **Aidan Perry** – DevOps Engineer
+- **Joseph Metzen** ([GitHub](https://github.com/jjmetzen)) – Kria board Specialist Engineer
+- **Tyler Schaefer** ([GitHub](https://github.com/TSSchaef)) – TBD
+- **Conner Ohnesorge** ([GitHub](https://github.com/connerohnesorge)) – Machine Learning Integration Engineer
+- **Aidan Perry** ([GitHub](https://github.com/priedieux)) – DevOps Engineer
 
 ---
 

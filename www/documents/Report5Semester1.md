@@ -8,10 +8,10 @@
 
 ## Team Members/Role
 
-- Joseph Metzen – Kria Board Manager
-- Tyler Schaefer – ML Algorithm Analyst
-- Conner Ohnesorge– ML Integration HWE
-- Aidan Perry – Multithreaded Program Developer
+- **Joseph Metzen** ([GitHub](https://github.com/jjmetzen)) – Kria Board Manager
+- **Tyler Schaefer** ([GitHub](https://github.com/TSSchaef)) – ML Algorithm Analyst
+- **Conner Ohnesorge** ([GitHub](https://github.com/connerohnesorge))– ML Integration HWE
+- **Aidan Perry** ([GitHub](https://github.com/priedieux)) – Multithreaded Program Developer
 
 ---
 
