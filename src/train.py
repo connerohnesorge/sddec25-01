@@ -69,22 +69,6 @@ def compute_iou_tensors(predictions, targets, num_classes=2):
     return intersection, union
 
 
-def finalize_iou(total_intersection, total_union):
-    """
-    Calculate mean IoU from accumulated intersection and union.
-
-    Args:
-        total_intersection: Accumulated intersection counts (num_classes,)
-        total_union: Accumulated union counts (num_classes,)
-
-    Returns:
-        Mean IoU across all classes
-    """
-    # Compute entirely on GPU, single .item() sync at end
-    iou_per_class = total_intersection / total_union.clamp(min=1)
-    return iou_per_class.mean().item()
-
-
 def get_predictions(output):
     """
     Convert model logits to predicted class labels.
@@ -112,6 +96,26 @@ def get_nparams(model):
         Number of trainable parameters
     """
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
+def compute_iou_cpu(intersection_vals, union_vals):
+    """
+    Calculate mean IoU from intersection and union values on CPU.
+
+    This function operates on CPU values (no GPU sync required).
+
+    Args:
+        intersection_vals: List of intersection counts [class0, class1]
+        union_vals: List of union counts [class0, class1]
+
+    Returns:
+        Mean IoU across all classes
+    """
+    iou_per_class = [
+        intersection_vals[i] / max(union_vals[i], 1.0)
+        for i in range(len(intersection_vals))
+    ]
+    return sum(iou_per_class) / len(iou_per_class)
 
 
 # ============================================================================
@@ -345,17 +349,8 @@ def train(args):
             # Update progress bar (no GPU sync)
             pbar.set_postfix({'alpha': f'{alpha:.3f}'})
 
-        # Calculate epoch metrics (single batched GPU->CPU transfer)
+        # Store batch count for later metrics calculation (no GPU sync yet)
         n_train_batches = len(train_loader)
-        train_metrics_gpu = torch.cat([
-            train_loss / n_train_batches,
-            train_ce_loss / n_train_batches,
-            train_dice_loss / n_train_batches,
-            train_surface_loss / n_train_batches,
-        ])
-        train_metrics = train_metrics_gpu.tolist()
-        train_loss_val, train_ce_val, train_dice_val, train_surface_val = train_metrics
-        train_iou = finalize_iou(train_intersection, train_union)
 
         # ====================================================================
         # Validation Phase
@@ -400,17 +395,53 @@ def train(args):
 
                 # No GPU sync in progress bar
 
-        # Calculate epoch metrics (single batched GPU->CPU transfer)
+        # ====================================================================
+        # Single Batched GPU->CPU Transfer (THE ONLY SYNC POINT PER EPOCH)
+        # ====================================================================
+
+        # Batch ALL epoch metrics into one tensor: 16 values total
         n_valid_batches = len(valid_loader)
-        valid_metrics_gpu = torch.cat([
+        all_metrics_gpu = torch.cat([
+            # Train losses (4 values)
+            train_loss / n_train_batches,
+            train_ce_loss / n_train_batches,
+            train_dice_loss / n_train_batches,
+            train_surface_loss / n_train_batches,
+            # Valid losses (4 values)
             valid_loss / n_valid_batches,
             valid_ce_loss / n_valid_batches,
             valid_dice_loss / n_valid_batches,
             valid_surface_loss / n_valid_batches,
+            # Train IoU components (4 values: 2 intersection + 2 union)
+            train_intersection,
+            train_union,
+            # Valid IoU components (4 values: 2 intersection + 2 union)
+            valid_intersection,
+            valid_union,
         ])
-        valid_metrics = valid_metrics_gpu.tolist()
-        valid_loss_val, valid_ce_val, valid_dice_val, valid_surface_val = valid_metrics
-        valid_iou = finalize_iou(valid_intersection, valid_union)
+
+        # Single GPU->CPU transfer for entire epoch
+        all_metrics = all_metrics_gpu.tolist()
+
+        # Unpack metrics
+        (
+            train_loss_val, train_ce_val, train_dice_val, train_surface_val,
+            valid_loss_val, valid_ce_val, valid_dice_val, valid_surface_val,
+            train_inter_0, train_inter_1,
+            train_union_0, train_union_1,
+            valid_inter_0, valid_inter_1,
+            valid_union_0, valid_union_1,
+        ) = all_metrics
+
+        # Compute IoU on CPU (no GPU sync)
+        train_iou = compute_iou_cpu(
+            [train_inter_0, train_inter_1],
+            [train_union_0, train_union_1]
+        )
+        valid_iou = compute_iou_cpu(
+            [valid_inter_0, valid_inter_1],
+            [valid_union_0, valid_union_1]
+        )
 
         # ====================================================================
         # Learning Rate Scheduling
