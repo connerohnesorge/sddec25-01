@@ -16,7 +16,7 @@
     />
     <meta
       name="description"
-      content="Iowa State University Senior Design Team sddec25-01 - Machine Learning: Semantic Segmentation Optimization for Eye Tracking in Assistive Technology. Improving accessibility through parallel processing U-Net algorithms."
+      content="Iowa State University Senior Design Team sddec25-01 - Machine Learning: Semantic Segmentation Optimization for Eye Tracking in Assistive Technology. Research on U-Net model splitting for DPU-based inference on AMD Kria KV260."
     />
     <meta
       name="keywords"
@@ -33,7 +33,7 @@
     />
     <meta
       property="og:description"
-      content="Iowa State University Senior Design project optimizing eye tracking for assistive technology using parallel U-Net processing."
+      content="Iowa State University Senior Design project analyzing U-Net model splitting for DPU-based eye tracking inference on AMD Kria KV260."
     />
     <meta
       property="og:image"
@@ -58,7 +58,7 @@
     />
     <meta
       name="twitter:description"
-      content="Iowa State University Senior Design project optimizing eye tracking for assistive technology using parallel U-Net processing."
+      content="Iowa State University Senior Design project analyzing U-Net model splitting for DPU-based eye tracking inference on AMD Kria KV260."
     />
     <meta
       name="twitter:image"
@@ -196,6 +196,20 @@
                     <span class="sr-only">Home</span>
                   </a>
                 </li>
+                <li>
+                  <a
+                    href="https://github.com/connerohnesorge/sddec25-01"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="View on GitHub"
+                  >
+                    <i
+                      class="fab fa-github"
+                      aria-hidden="true"
+                    ></i>
+                    <span class="sr-only">GitHub Repository</span>
+                  </a>
+                </li>
                 <li><a href="#overview">Overview</a></li>
                 <li><a href="#projectinfo">Project Info</a></li>
                 <li><a href="#teammembers">Team</a></li>
@@ -237,15 +251,19 @@
                   conditions like cerebral palsy.
                 </p>
                 <p>
-                  By pipelining a U-Net neural network algorithm into four equal parts that can run concurrently while
-                  maintaining accuracy, we aim to increase processing speed from 160 ms per frame to 33.2ms per frame
-                  for 4 frames simultaneously. This will increase throughput and maintain our required 99.8% IoU
-                  accuracy while achieving a target processing speed of 60 frames per second.
+                  Our original approach involved pipelining the U-Net neural network algorithm into four equal parts
+                  to run concurrently. However, through rigorous testing and output validation, we discovered that the
+                  Vitis AI model compiler incorrectly scaled the last two split segments by a factor of two, requiring
+                  input tensor rescaling for correct output. Our performance analysis showed the Single Model (534.65 ms,
+                  1.87 FPS, 42.99 MB) is 9.20x faster than the Split Model with 4 segments (4918.27 ms, 0.20 FPS,
+                  134.00 MB), demonstrating that the DPU architecture does not benefit from model splitting for this
+                  use case.
                 </p>
-                <p>Key innovations in our approach include:</p>
+                <p>Key contributions from our research include:</p>
                 <ul>
-                  <li>Parallel processing of the U-Net semantic segmentation algorithm</li>
-                  <li>Efficient memory allocation and thread synchronization</li>
+                  <li>Comprehensive analysis of U-Net model splitting for DPU-based inference</li>
+                  <li>Discovery of Vitis AI compiler scaling issues with split model segments</li>
+                  <li>Performance benchmarking methodology for split vs single model inference</li>
                   <li>
                     Optimization for the
                     <a href="https://www.amd.com/en/products/system-on-modules/kria/k26/kv260-vision-starter-kit.html">
@@ -253,10 +271,8 @@
                     </a>
                     development board
                   </li>
-                  <li>Strategic DPU (Deep Processing Unit) resource sharing</li>
-                  <li>Onnx Model Decomposition</li>
-    		  <li>Propitiatory Machine Learning Models</li>
-                  <li>Kernel Scheduling Optimization</li>
+                  <li>ONNX Model Decomposition and analysis</li>
+                  <li>Proprietary Machine Learning Models</li>
                   <li>AMD Development Tools: Petalinux Tools, Vitis AI, Vitis AI Model Optimizer</li>
                   <li>Docker Development Environment</li>
                 </ul>
@@ -264,7 +280,7 @@
               <aside class="col-md-4">
                 <img
                   src="high-level-diagram.png"
-                  alt="High-level architecture diagram showing the semantic segmentation optimization pipeline with U-Net neural network divided into parallel processing units"
+                  alt="High-level architecture diagram showing the semantic segmentation optimization pipeline with U-Net neural network model splitting analysis"
                   class="img-responsive"
                   style="width: 100%; height: auto"
                 />
@@ -500,6 +516,26 @@
                       Weekly Report 1
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report1Semester1.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 1 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report1Semester1.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 1 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Conducted client meetings and preliminary research, but remained in a holding pattern waiting for
@@ -517,6 +553,26 @@
                       Weekly Report 2
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report2Semester1.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 2 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report2Semester1.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 2 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Onboarded into specialized project areas with Joseph studying Kria board specifications and memory
@@ -536,6 +592,26 @@
                       Weekly Report 3
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report3Semester1.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 3 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report3Semester1.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 3 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Deepened our understanding of the codebase through comments, diagrams, and meetings with former team
@@ -559,16 +635,36 @@
                       Weekly Report 4
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report4Semester1.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 4 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report4Semester1.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 4 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Transition from theoretical learning to hands-on experimentation. Joseph finalized component
                     selections for the project and studied data flow through the Kria Board. Tyler successfully
                     configured the Vitis-AI docker container and trained the existing model to demonstrate proper
                     environment setup to the client. Conner created a test application that split a PyTorch segmentation
-                    model into separate encoder and decoder ONNX models, noting decreased latency but increased
-                    throughput for multicore processing. Aidan continued collaboration with the previous codebase owner
-                    while developing matrix equations for the multithreaded pipeline and becoming familiar with the
-                    `cv::mat` class.
+                    model into separate encoder and decoder ONNX models for initial multicore processing experiments
+                    (later analysis would reveal DPU limitations with this approach). Aidan continued collaboration with
+                    the previous codebase owner while developing matrix equations for the multithreaded pipeline and
+                    becoming familiar with the `cv::mat` class.
                   </p>
 
                   <div
@@ -582,6 +678,26 @@
                       Weekly Report 5
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report5Semester1.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 5 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report5Semester1.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 5 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Making progress on software installations for properly running and visualizing the Kria board
@@ -604,6 +720,26 @@
                       Weekly Report 6
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report6Semester1.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 6 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report6Semester1.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 6 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Further optimizing the Kria board while advancing research on model splitting to improve
@@ -627,6 +763,26 @@
                       Weekly Report 7
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report7Semester1.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 7 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report7Semester1.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 7 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Benchmarking and technical documentation while preparing for future implementation. Joseph worked
@@ -651,6 +807,26 @@
                       Weekly Report 8
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report8Semester1.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 8 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report8Semester1.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 8 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Moved from evaluation to implementation as we transitioned to the next phase of the project. Joseph
@@ -676,6 +852,26 @@
                       Weekly Report 1
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report1Semester2.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 1 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report1Semester2.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 1 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Review of project goals and requirements with the client, revisiting team roles and duties. Reworked
@@ -694,6 +890,26 @@
                       Weekly Report 2
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report2Semester2.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 2 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report2Semester2.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 2 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Met with client and faculty advisor to re-align on progress and future steps. Joseph created a data
@@ -712,12 +928,32 @@
                       Weekly Report 3
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report3Semester2.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 3 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report3Semester2.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 3 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Significant progress on model optimization. Conner implemented multiple splitting techniques with
-                    reproducible Docker execution and deployed versions to the board. Tyler verified split model accuracy.
-                    Aidan completed C++ code for multi-threaded model confirmation. Joseph helped get segments running on
-                    the board.
+                    reproducible Docker execution and deployed versions to the board. Tyler conducted initial split model
+                    testing (later analysis revealed Vitis AI compiler scaling issues). Aidan completed C++ code for
+                    multi-threaded model confirmation. Joseph helped get segments running on the board.
                   </p>
 
                   <div
@@ -731,6 +967,26 @@
                       Weekly Report 4
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report4Semester2.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 4 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report4Semester2.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 4 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Relocated Kria Board to Senior Design lab for easier access. Successfully compiled and verified
@@ -750,11 +1006,32 @@
                       Weekly Report 5
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report5Semester2.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 5 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report5Semester2.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 5 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Joseph created a Blink Detection script and helped plan the design poster. Conner improved training
                     script performance by over 10x and planned the live demo. Tyler worked on documentation handoff for
-                    future teams. Aidan created an eye tracking accuracy script and helped finish the split U-Net analysis.
+                    future teams. Aidan created an eye tracking accuracy script and contributed to split U-Net model
+                    analysis preparation.
                   </p>
 
                   <div
@@ -768,12 +1045,35 @@
                       Weekly Report 6
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report6Semester2.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Weekly Report 6 PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/Report6Semester2.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Weekly Report 6 Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
-                    Completed performance analysis comparing split vs single UNET model inference. Results showed the
-                    Single Model (529.39 ms) outperformed the Split Model with 4 segments (784.29 ms). Team finalized
-                    design document changes, transferred data from the Kria board for future teams, and began planning
-                    the final presentation and live xfce demo.
+                    Completed performance analysis comparing split vs single UNET model inference. Initial results were
+                    measured without evaluating outputs; upon validation, we discovered the Vitis AI model compiler
+                    incorrectly scaled the last two split segments by a factor of two, requiring input tensor rescaling
+                    for correct output. Corrected results: Single Model (534.65 ms, 1.87 FPS, 42.99 MB) is 9.20x faster
+                    than Split Model with 4 segments (4918.27 ms, 0.20 FPS, 134.00 MB). Team finalized design document
+                    changes, transferred data from the Kria board for future teams, and began planning the final
+                    presentation and live xfce demo.
                   </p>
                 </section>
 
@@ -790,11 +1090,32 @@
                       Design Doc: Semantic Segmentation Optimization
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/DesignDocSemester1.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Design Document PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/DesignDocSemester1.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Design Document Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     This document outlines the design specifications for our eye tracking semantic segmentation
-                    optimization project. It includes the mathematical approach to dividing the U-Net algorithm, memory
-                    allocation strategies, thread synchronization mechanisms, and hardware configurations for the
+                    optimization project. It includes the mathematical approach to dividing the U-Net algorithm,
+                    performance analysis findings (Single Model 9.20x faster than Split Model due to Vitis AI compiler
+                    scaling issues), memory allocation strategies, and hardware configurations for the
                     <a href="https://www.amd.com/en/products/system-on-modules/kria/k26/kv260-vision-starter-kit.html">
                       AMD Kria KV260
                     </a>
@@ -815,6 +1136,16 @@
                       Lightning Talk 1: Project Overview
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/LightningTalk.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Lightning Talk PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     A presentation covering our project's objectives, technical approach, and preliminary results for
@@ -835,6 +1166,26 @@
                       Engineering Standards
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/EngineeringStandards.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Engineering Standards PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/EngineeringStandards.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Engineering Standards Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Documentation of the engineering standards used in our project, including IEEE standards for
@@ -856,6 +1207,26 @@
                       Testing Strategy
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/TestingStrategy.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View Testing Strategy PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/TestingStrategy.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View Testing Strategy Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     Comprehensive testing strategy document outlining our approach for validating the semantic
@@ -874,6 +1245,26 @@
                       User Testing
                     </a>
                     <span class="pdf-indicator">[PDF]</span>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/UserTestingPlan.pdf"
+                      class="github-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View PDF on GitHub"
+                      aria-label="View User Testing Plan PDF on GitHub"
+                    >
+                      <i class="fab fa-github" aria-hidden="true"></i>
+                    </a>
+                    <a
+                      href="https://github.com/connerohnesorge/sddec25-01/blob/main/www/documents/UserTestingPlan.md"
+                      class="markdown-link"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View Markdown on GitHub"
+                      aria-label="View User Testing Plan Markdown on GitHub"
+                    >
+                      <i class="fab fa-markdown" aria-hidden="true"></i>
+                    </a>
                   </div>
                   <p class="document-summary">
                     User testing plan document outlining the testing procedures and metrics for ensuring the quality of
@@ -953,6 +1344,20 @@
           </div>
           <div class="footer-section">
             <h4>Quick Links</h4>
+            <p>
+              <a
+                href="https://github.com/connerohnesorge/sddec25-01"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="View on GitHub"
+              >
+                <i
+                  class="fab fa-github"
+                  aria-hidden="true"
+                ></i>
+                GitHub Repository
+              </a>
+            </p>
             <p><a href="https://www.ece.iastate.edu/">Department of Electrical and Computer Engineering</a></p>
             <p><a href="https://www.iastate.edu/">Iowa State University</a></p>
             <p><a href="https://www.engineering.iastate.edu/">College of Engineering</a></p>

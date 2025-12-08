@@ -936,3 +936,58 @@ footer {
     padding: 15px;
   }
 }
+
+/* GitHub and Markdown link styles */
+.github-link,
+.markdown-link {
+  display: inline-block;
+  margin-left: 8px;
+  color: #666;
+  text-decoration: none;
+  font-size: 1.1em;
+  transition: color 0.2s ease, transform 0.2s ease;
+  vertical-align: middle;
+}
+
+.github-link i,
+.markdown-link i {
+  font-size: 1em;
+  vertical-align: middle;
+}
+
+.github-link:hover {
+  color: #333;
+  transform: scale(1.15);
+  text-decoration: none;
+}
+
+.markdown-link:hover {
+  color: #c8102e;
+  transform: scale(1.15);
+  text-decoration: none;
+}
+
+/* Ensure proper spacing when multiple icons appear together */
+.github-link + .markdown-link {
+  margin-left: 6px;
+}
+
+/* Additional styling for icon links in document sections */
+.pdf-link-container .github-link,
+.pdf-link-container .markdown-link {
+  margin-left: 10px;
+  font-size: 1em;
+}
+
+/* Responsive adjustments for icon links */
+@media (max-width: 768px) {
+  .github-link,
+  .markdown-link {
+    font-size: 1em;
+    margin-left: 6px;
+  }
+
+  .github-link + .markdown-link {
+    margin-left: 5px;
+  }
+}
