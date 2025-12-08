@@ -282,6 +282,23 @@ def train(args):
     scaler = torch.amp.GradScaler("cuda") if use_amp else None
 
     # ========================================================================
+    # Resume from Checkpoint (if specified)
+    # ========================================================================
+
+    start_epoch = 0
+    best_iou = 0.0
+
+    if args.resume:
+        print(f"\nResuming from checkpoint: {args.resume}")
+        checkpoint = torch.load(args.resume, map_location=device, weights_only=False)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+        start_epoch = checkpoint["epoch"] + 1
+        best_iou = checkpoint.get("valid_iou", 0.0)
+        print(f"Resumed from epoch {checkpoint['epoch'] + 1}, best IoU: {best_iou:.4f}")
+
+    # ========================================================================
     # Alpha Scheduling (for loss weighting)
     # ========================================================================
 
@@ -303,9 +320,8 @@ def train(args):
     print("=" * 80)
 
     os.makedirs(args.checkpoint_dir, exist_ok=True)
-    best_iou = 0.0
 
-    for epoch in range(args.epochs):
+    for epoch in range(start_epoch, args.epochs):
         alpha = alpha_schedule[epoch]
 
         # ====================================================================
@@ -571,6 +587,12 @@ def main():
         default="checkpoints",
         help="Directory to save checkpoints",
     )
+    parser.add_argument(
+        "--resume",
+        type=str,
+        default=None,
+        help="Path to checkpoint to resume training from",
+    )
 
     args = parser.parse_args()
 
@@ -585,6 +607,7 @@ def main():
     print(f"Learning rate: {args.lr}")
     print(f"Num workers: {args.num_workers}")
     print(f"Checkpoint dir: {args.checkpoint_dir}")
+    print(f"Resume from: {args.resume if args.resume else 'None'}")
     print(f"Random seed: {args.seed}")
     print("=" * 80)
 
