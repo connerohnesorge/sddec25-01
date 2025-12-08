@@ -25,6 +25,7 @@ dependencies = [
     "pyyaml>=6.0.0",
     "datasets>=4.4.1",
     "pyarrow>=14.0.0",
+    "torchview>=0.2.7",
 ]
 
 [project.scripts]

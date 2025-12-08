@@ -150,6 +150,7 @@
               watchexec # File watcher alternative to latexmk -pvc
               pyrefly
 
+              graphviz
               # Python tooling for training scripts
               uv # Python package manager
               ruff

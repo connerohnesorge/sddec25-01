@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VisionAssist Live Demo - TinyEfficientViT Semantic Segmentation
+TinyEfficientViT Semantic Segmentation with Preprocessing (Gamma + CLAHE)
 
 This demo application performs real-time semantic segmentation on webcam input
 using the TinyEfficientViT model. It demonstrates eye tracking and facial feature
@@ -33,9 +33,9 @@ class VisionAssistDemo:
     TARGET_ASPECT_RATIO = 640 / 400
 
     # Preprocessing parameters (MUST match training exactly)
-    # GAMMA = 0.8
-    # CLAHE_CLIP_LIMIT = 1.5
-    # CLAHE_TILE_SIZE = (8, 8)
+    GAMMA = 0.8
+    CLAHE_CLIP_LIMIT = 1.5
+    CLAHE_TILE_SIZE = (8, 8)
     NORMALIZE_MEAN = 0.5
     NORMALIZE_STD = 0.5
 
@@ -87,9 +87,9 @@ class VisionAssistDemo:
             (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
         )
         # # Gamma correction buffer
-        # self._gamma_buffer = np.empty(
-        #     (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
-        # )
+        self._gamma_buffer = np.empty(
+            (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
+        )
         # CLAHE buffer (reusing _resized_buffer name for backward compat in normalize step)
         self._resized_buffer = np.empty(
             (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
@@ -222,20 +222,20 @@ class VisionAssistDemo:
     def _init_preprocessing(self):
         """Initialize preprocessing components."""
         # # Gamma correction lookup table
-        # self.gamma_table = (255.0 * (np.linspace(0, 1, 256) ** self.GAMMA)).astype(
-        #     np.uint8
-        # )
-        #
-        # # CLAHE (Contrast Limited Adaptive Histogram Equalization)
-        # self.clahe = cv2.createCLAHE(
-        #     clipLimit=self.CLAHE_CLIP_LIMIT, tileGridSize=self.CLAHE_TILE_SIZE
-        # )
-        #
-        # if self.verbose:
-        #     print(
-        #         f"Preprocessing initialized: gamma={self.GAMMA}, "
-        #         f"CLAHE(clip={self.CLAHE_CLIP_LIMIT}, tile={self.CLAHE_TILE_SIZE})"
-        #     )
+        self.gamma_table = (255.0 * (np.linspace(0, 1, 256) ** self.GAMMA)).astype(
+            np.uint8
+        )
+
+        # CLAHE (Contrast Limited Adaptive Histogram Equalization)
+        self.clahe = cv2.createCLAHE(
+            clipLimit=self.CLAHE_CLIP_LIMIT, tileGridSize=self.CLAHE_TILE_SIZE
+        )
+
+        if self.verbose:
+            print(
+                f"Preprocessing initialized: gamma={self.GAMMA}, "
+                f"CLAHE(clip={self.CLAHE_CLIP_LIMIT}, tile={self.CLAHE_TILE_SIZE})"
+            )
 
     def _extract_eye_region(self, frame, landmarks):
         """
@@ -346,26 +346,26 @@ class VisionAssistDemo:
             )
 
         # # Step 3: Gamma correction (gamma=0.8) (into pre-allocated buffer)
-        # cv2.LUT(self._gray_buffer, self.gamma_table, dst=self._gamma_buffer)
-        # if self.verbose:
-        #     t_gamma = time.time()
-        #     print(
-        #         f"  Gamma correction: {(t_gamma - t_gray)*1000:.2f}ms, "
-        #         f"range=[{self._gamma_buffer.min()}, {self._gamma_buffer.max()}]"
-        #     )
-        #
+        cv2.LUT(self._gray_buffer, self.gamma_table, dst=self._gamma_buffer)
+        if self.verbose:
+            t_gamma = time.time()
+            print(
+                f"  Gamma correction: {(t_gamma - t_gray)*1000:.2f}ms, "
+                f"range=[{self._gamma_buffer.min()}, {self._gamma_buffer.max()}]"
+            )
+
         # # Step 4: CLAHE (Contrast Limited Adaptive Histogram Equalization) (into pre-allocated buffer)
-        # self.clahe.apply(self._gamma_buffer, dst=self._resized_buffer)
-        # if self.verbose:
-        #     t_clahe = time.time()
-        #     print(
-        #         f"  CLAHE: {(t_clahe - t_gamma)*1000:.2f}ms, "
-        #         f"range=[{self._resized_buffer.min()}, {self._resized_buffer.max()}]"
-        #     )
+        self.clahe.apply(self._gamma_buffer, dst=self._resized_buffer)
+        if self.verbose:
+            t_clahe = time.time()
+            print(
+                f"  CLAHE: {(t_clahe - t_gamma)*1000:.2f}ms, "
+                f"range=[{self._resized_buffer.min()}, {self._resized_buffer.max()}]"
+            )
 
         # Step 5: Normalize (mean=0.5, std=0.5) -> range [-1, 1]
         # Use in-place operations with pre-allocated buffer
-        np.multiply(self._gray_buffer, 1.0 / 255.0, out=self._normalized_buffer)
+        np.multiply(self._resized_buffer, 1.0 / 255.0, out=self._normalized_buffer)
         np.subtract(
             self._normalized_buffer, self.NORMALIZE_MEAN, out=self._normalized_buffer
         )
@@ -670,7 +670,10 @@ class VisionAssistDemo:
                     )
 
                     # Display
-                    cv2.imshow("VisionAssist Live Demo", annotated)
+                    cv2.imshow(
+                        "TinyEfficientViT Semantic Segmentation with Preprocessing (Gamma + CLAHE)",
+                        annotated,
+                    )
 
                     self.frame_count += 1
                 else:
@@ -708,7 +711,7 @@ class VisionAssistDemo:
 def main():
     """Main entry point for the VisionAssist live demo."""
     parser = argparse.ArgumentParser(
-        description="VisionAssist Live Demo - TinyEfficientViT Semantic Segmentation"
+        description="TinyEfficientViT Semantic Segmentation with Preprocessing (Gamma + CLAHE)"
     )
     parser.add_argument(
         "--model",

@@ -91,7 +91,9 @@ def download_kaggle_dataset(output_path: str, username: str, key: str) -> str:
             if os.path.exists(train_path):
                 print(f"Dataset already exists at: {path}")
                 return path
-        print(f"Directory {output_path} exists but doesn't contain expected data, downloading...")
+        print(
+            f"Directory {output_path} exists but doesn't contain expected data, downloading..."
+        )
 
     # Set credentials via environment variables for kagglehub
     os.environ["KAGGLE_USERNAME"] = username
@@ -129,55 +131,67 @@ def process_single_sample(
             return None
         label = np.load(label_path)
         # Resize label to target dimensions using cv2.resize with INTER_NEAREST for label data
-        label = cv2.resize(label, (IMAGE_WIDTH, IMAGE_HEIGHT), interpolation=cv2.INTER_NEAREST)
+        label = cv2.resize(
+            label, (IMAGE_WIDTH, IMAGE_HEIGHT), interpolation=cv2.INTER_NEAREST
+        )
         label_binary = np.zeros_like(label, dtype=np.uint8)
         label_binary[label == 3] = 1
         spatial_weights = compute_spatial_weights(label_binary)
         dist_map = compute_distance_map(label_binary)
         # Also resize the image to match target dimensions
         image = np.array(img)
-        image = cv2.resize(image, (IMAGE_WIDTH, IMAGE_HEIGHT), interpolation=cv2.INTER_LINEAR)
+        image = cv2.resize(
+            image, (IMAGE_WIDTH, IMAGE_HEIGHT), interpolation=cv2.INTER_LINEAR
+        )
 
         samples = []
 
         # 1. Original (no augmentation)
-        samples.append({
-            "image": image,
-            "label": label_binary,
-            "spatial_weights": spatial_weights,
-            "dist_map": dist_map,
-            "filename": basename,
-        })
+        samples.append(
+            {
+                "image": image,
+                "label": label_binary,
+                "spatial_weights": spatial_weights,
+                "dist_map": dist_map,
+                "filename": basename,
+            }
+        )
 
         # 2. Horizontal flip (affects ALL arrays)
         flip_img, flip_label, flip_sw, flip_dm = horizontal_flip(
             image, label_binary, spatial_weights, dist_map
         )
-        samples.append({
-            "image": flip_img,
-            "label": flip_label,
-            "spatial_weights": flip_sw,
-            "dist_map": flip_dm,
-            "filename": f"{basename}_flip",
-        })
+        samples.append(
+            {
+                "image": flip_img,
+                "label": flip_label,
+                "spatial_weights": flip_sw,
+                "dist_map": flip_dm,
+                "filename": f"{basename}_flip",
+            }
+        )
 
         # 3. Gaussian blur (only image changes)
-        samples.append({
-            "image": gaussian_blur(image),
-            "label": label_binary,
-            "spatial_weights": spatial_weights,
-            "dist_map": dist_map,
-            "filename": f"{basename}_blur",
-        })
+        samples.append(
+            {
+                "image": gaussian_blur(image),
+                "label": label_binary,
+                "spatial_weights": spatial_weights,
+                "dist_map": dist_map,
+                "filename": f"{basename}_blur",
+            }
+        )
 
         # 4. Line augment (only image changes)
-        samples.append({
-            "image": line_augment(image),
-            "label": label_binary,
-            "spatial_weights": spatial_weights,
-            "dist_map": dist_map,
-            "filename": f"{basename}_lines",
-        })
+        samples.append(
+            {
+                "image": line_augment(image),
+                "label": label_binary,
+                "spatial_weights": spatial_weights,
+                "dist_map": dist_map,
+                "filename": f"{basename}_lines",
+            }
+        )
 
         return samples
     except Exception as e:

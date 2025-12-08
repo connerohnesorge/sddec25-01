@@ -163,13 +163,21 @@ class IrisDataset(Dataset):
         sample = self.dataset[idx]
 
         # Reshape flat arrays to images
-        image = np.array(sample["image"], dtype=np.uint8).reshape(IMAGE_HEIGHT, IMAGE_WIDTH)
-        label = np.array(sample["label"], dtype=np.uint8).reshape(IMAGE_HEIGHT, IMAGE_WIDTH)
+        image = np.array(sample["image"], dtype=np.uint8).reshape(
+            IMAGE_HEIGHT, IMAGE_WIDTH
+        )
+        label = np.array(sample["label"], dtype=np.uint8).reshape(
+            IMAGE_HEIGHT, IMAGE_WIDTH
+        )
         spatial_weights = torch.from_numpy(
-            np.array(sample["spatial_weights"], dtype=np.float32).reshape(IMAGE_HEIGHT, IMAGE_WIDTH)
+            np.array(sample["spatial_weights"], dtype=np.float32).reshape(
+                IMAGE_HEIGHT, IMAGE_WIDTH
+            )
         )
         dist_map = torch.from_numpy(
-            np.array(sample["dist_map"], dtype=np.float32).reshape(2, IMAGE_HEIGHT, IMAGE_WIDTH)
+            np.array(sample["dist_map"], dtype=np.float32).reshape(
+                2, IMAGE_HEIGHT, IMAGE_WIDTH
+            )
         )
 
         # Convert to PIL for transforms
@@ -208,13 +216,15 @@ def train(args):
     print(f"Validation samples: {len(hf_dataset['validation'])}")
 
     # Transforms - only normalization (no preprocessing)
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize([0.5], [0.5]),  # Normalize grayscale to [-1, 1]
-    ])
+    transform = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize([0.5], [0.5]),  # Normalize grayscale to [-1, 1]
+        ]
+    )
 
-    train_dataset = IrisDataset(hf_dataset['train'], transform=transform)
-    valid_dataset = IrisDataset(hf_dataset['validation'], transform=transform)
+    train_dataset = IrisDataset(hf_dataset["train"], transform=transform)
+    valid_dataset = IrisDataset(hf_dataset["validation"], transform=transform)
 
     train_loader = DataLoader(
         train_dataset,
@@ -262,14 +272,14 @@ def train(args):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
-        mode='min',
+        mode="min",
         patience=5,
         factor=0.5,
     )
 
     # Mixed precision training setup
     use_amp = torch.cuda.is_available()
-    scaler = torch.amp.GradScaler('cuda') if use_amp else None
+    scaler = torch.amp.GradScaler("cuda") if use_amp else None
 
     # ========================================================================
     # Alpha Scheduling (for loss weighting)
@@ -278,7 +288,9 @@ def train(args):
     # Alpha decays from 1 to 0 over 125 epochs
     # Controls balance between dice loss (alpha) and surface loss (1-alpha)
     alpha_schedule = np.zeros(args.epochs)
-    alpha_schedule[0:min(125, args.epochs)] = 1 - np.arange(1, min(125, args.epochs) + 1) / min(125, args.epochs)
+    alpha_schedule[0 : min(125, args.epochs)] = 1 - np.arange(
+        1, min(125, args.epochs) + 1
+    ) / min(125, args.epochs)
     if args.epochs > 125:
         alpha_schedule[125:] = 0
 
@@ -286,9 +298,9 @@ def train(args):
     # Training Loop
     # ========================================================================
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("Starting Training")
-    print("="*80)
+    print("=" * 80)
 
     os.makedirs(args.checkpoint_dir, exist_ok=True)
     best_iou = 0.0
@@ -320,7 +332,7 @@ def train(args):
             optimizer.zero_grad()
 
             # Forward pass with mixed precision
-            with torch.amp.autocast('cuda', enabled=use_amp):
+            with torch.amp.autocast("cuda", enabled=use_amp):
                 outputs = model(images)
                 loss, ce_loss, dice_loss, surface_loss = criterion(
                     outputs, labels, spatial_weights, dist_maps, alpha
@@ -347,7 +359,7 @@ def train(args):
             train_union += uni
 
             # Update progress bar (no GPU sync)
-            pbar.set_postfix({'alpha': f'{alpha:.3f}'})
+            pbar.set_postfix({"alpha": f"{alpha:.3f}"})
 
         # Store batch count for later metrics calculation (no GPU sync yet)
         n_train_batches = len(train_loader)
@@ -375,7 +387,7 @@ def train(args):
                 dist_maps = dist_maps.to(device, non_blocking=True)
 
                 # Forward pass
-                with torch.amp.autocast('cuda', enabled=use_amp):
+                with torch.amp.autocast("cuda", enabled=use_amp):
                     outputs = model(images)
                     loss, ce_loss, dice_loss, surface_loss = criterion(
                         outputs, labels, spatial_weights, dist_maps, alpha
@@ -401,46 +413,56 @@ def train(args):
 
         # Batch ALL epoch metrics into one tensor: 16 values total
         n_valid_batches = len(valid_loader)
-        all_metrics_gpu = torch.cat([
-            # Train losses (4 values)
-            train_loss / n_train_batches,
-            train_ce_loss / n_train_batches,
-            train_dice_loss / n_train_batches,
-            train_surface_loss / n_train_batches,
-            # Valid losses (4 values)
-            valid_loss / n_valid_batches,
-            valid_ce_loss / n_valid_batches,
-            valid_dice_loss / n_valid_batches,
-            valid_surface_loss / n_valid_batches,
-            # Train IoU components (4 values: 2 intersection + 2 union)
-            train_intersection,
-            train_union,
-            # Valid IoU components (4 values: 2 intersection + 2 union)
-            valid_intersection,
-            valid_union,
-        ])
+        all_metrics_gpu = torch.cat(
+            [
+                # Train losses (4 values)
+                train_loss / n_train_batches,
+                train_ce_loss / n_train_batches,
+                train_dice_loss / n_train_batches,
+                train_surface_loss / n_train_batches,
+                # Valid losses (4 values)
+                valid_loss / n_valid_batches,
+                valid_ce_loss / n_valid_batches,
+                valid_dice_loss / n_valid_batches,
+                valid_surface_loss / n_valid_batches,
+                # Train IoU components (4 values: 2 intersection + 2 union)
+                train_intersection,
+                train_union,
+                # Valid IoU components (4 values: 2 intersection + 2 union)
+                valid_intersection,
+                valid_union,
+            ]
+        )
 
         # Single GPU->CPU transfer for entire epoch
         all_metrics = all_metrics_gpu.tolist()
 
         # Unpack metrics
         (
-            train_loss_val, train_ce_val, train_dice_val, train_surface_val,
-            valid_loss_val, valid_ce_val, valid_dice_val, valid_surface_val,
-            train_inter_0, train_inter_1,
-            train_union_0, train_union_1,
-            valid_inter_0, valid_inter_1,
-            valid_union_0, valid_union_1,
+            train_loss_val,
+            train_ce_val,
+            train_dice_val,
+            train_surface_val,
+            valid_loss_val,
+            valid_ce_val,
+            valid_dice_val,
+            valid_surface_val,
+            train_inter_0,
+            train_inter_1,
+            train_union_0,
+            train_union_1,
+            valid_inter_0,
+            valid_inter_1,
+            valid_union_0,
+            valid_union_1,
         ) = all_metrics
 
         # Compute IoU on CPU (no GPU sync)
         train_iou = compute_iou_cpu(
-            [train_inter_0, train_inter_1],
-            [train_union_0, train_union_1]
+            [train_inter_0, train_inter_1], [train_union_0, train_union_1]
         )
         valid_iou = compute_iou_cpu(
-            [valid_inter_0, valid_inter_1],
-            [valid_union_0, valid_union_1]
+            [valid_inter_0, valid_inter_1], [valid_union_0, valid_union_1]
         )
 
         # ====================================================================
@@ -448,7 +470,7 @@ def train(args):
         # ====================================================================
 
         scheduler.step(valid_loss_val)
-        current_lr = optimizer.param_groups[0]['lr']
+        current_lr = optimizer.param_groups[0]["lr"]
 
         # ====================================================================
         # Logging
@@ -470,36 +492,42 @@ def train(args):
             best_iou = valid_iou
 
             # Save PyTorch checkpoint
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict(),
-                'valid_iou': valid_iou,
-                'valid_loss': valid_loss_val,
-            }, f"{args.checkpoint_dir}/best_model.pth")
+            torch.save(
+                {
+                    "epoch": epoch,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "scheduler_state_dict": scheduler.state_dict(),
+                    "valid_iou": valid_iou,
+                    "valid_loss": valid_loss_val,
+                },
+                f"{args.checkpoint_dir}/best_model.pth",
+            )
 
             print(f"  >> Saved best model with IoU={best_iou:.4f}")
 
         # Save periodic checkpoints
         if (epoch + 1) % 5 == 0:
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict(),
-                'valid_iou': valid_iou,
-                'valid_loss': valid_loss_val,
-            }, f"{args.checkpoint_dir}/checkpoint_epoch_{epoch+1}.pth")
+            torch.save(
+                {
+                    "epoch": epoch,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "scheduler_state_dict": scheduler.state_dict(),
+                    "valid_iou": valid_iou,
+                    "valid_loss": valid_loss_val,
+                },
+                f"{args.checkpoint_dir}/checkpoint_epoch_{epoch+1}.pth",
+            )
             print(f"  >> Saved checkpoint at epoch {epoch+1}")
 
     # ========================================================================
     # Training Complete
     # ========================================================================
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("Training Complete!")
-    print("="*80)
+    print("=" * 80)
     print(f"Best validation IoU: {best_iou:.4f}")
     print(f"\nPyTorch checkpoint saved to: {args.checkpoint_dir}/best_model.pth")
 
@@ -512,34 +540,44 @@ def train(args):
 def main():
     """Parse arguments and start training."""
     parser = argparse.ArgumentParser(
-        description='Train TinyEfficientViTSeg for pupil segmentation',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        description="Train TinyEfficientViTSeg for pupil segmentation",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
     # Training hyperparameters
-    parser.add_argument('--batch-size', type=int, default=32,
-                        help='Batch size for training and validation')
-    parser.add_argument('--epochs', type=int, default=15,
-                        help='Number of training epochs')
-    parser.add_argument('--lr', type=float, default=1e-3,
-                        help='Initial learning rate')
-    parser.add_argument('--seed', type=int, default=42,
-                        help='Random seed for reproducibility')
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=32,
+        help="Batch size for training and validation",
+    )
+    parser.add_argument(
+        "--epochs", type=int, default=15, help="Number of training epochs"
+    )
+    parser.add_argument("--lr", type=float, default=1e-3, help="Initial learning rate")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed for reproducibility"
+    )
 
     # Data loading
-    parser.add_argument('--num-workers', type=int, default=4,
-                        help='Number of dataloader workers')
+    parser.add_argument(
+        "--num-workers", type=int, default=4, help="Number of dataloader workers"
+    )
 
     # Checkpointing
-    parser.add_argument('--checkpoint-dir', type=str, default='checkpoints',
-                        help='Directory to save checkpoints')
+    parser.add_argument(
+        "--checkpoint-dir",
+        type=str,
+        default="checkpoints",
+        help="Directory to save checkpoints",
+    )
 
     args = parser.parse_args()
 
     # Print configuration
-    print("="*80)
+    print("=" * 80)
     print("TinyEfficientViTSeg Training Configuration")
-    print("="*80)
+    print("=" * 80)
     print(f"Dataset: {HF_DATASET_REPO}")
     print(f"Image size: {IMAGE_WIDTH}x{IMAGE_HEIGHT}")
     print(f"Batch size: {args.batch_size}")
@@ -548,7 +586,7 @@ def main():
     print(f"Num workers: {args.num_workers}")
     print(f"Checkpoint dir: {args.checkpoint_dir}")
     print(f"Random seed: {args.seed}")
-    print("="*80)
+    print("=" * 80)
 
     # Start training
     try:
