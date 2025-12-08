@@ -971,17 +971,23 @@ footer {
 
 /* Team member GitHub profile links */
 .team-github-link {
-  display: inline-block;
+  display: block;
   color: #666;
   font-size: 1.2em;
   margin-top: 8px;
   transition: color 0.2s ease, transform 0.2s ease;
+  cursor: pointer;
+  text-align: center;
 }
 
 .team-github-link:hover {
   color: #333;
   transform: scale(1.15);
   text-decoration: none;
+}
+
+.team-github-link i {
+  pointer-events: none;
 }
 
 /* Ensure proper spacing when multiple icons appear together */
