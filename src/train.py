@@ -160,8 +160,12 @@ class IrisDataset(Dataset):
         # Reshape flat arrays to images
         image = np.array(sample["image"], dtype=np.uint8).reshape(IMAGE_HEIGHT, IMAGE_WIDTH)
         label = np.array(sample["label"], dtype=np.uint8).reshape(IMAGE_HEIGHT, IMAGE_WIDTH)
-        spatial_weights = np.array(sample["spatial_weights"], dtype=np.float32).reshape(IMAGE_HEIGHT, IMAGE_WIDTH)
-        dist_map = np.array(sample["dist_map"], dtype=np.float32).reshape(2, IMAGE_HEIGHT, IMAGE_WIDTH)
+        spatial_weights = torch.from_numpy(
+            np.array(sample["spatial_weights"], dtype=np.float32).reshape(IMAGE_HEIGHT, IMAGE_WIDTH)
+        )
+        dist_map = torch.from_numpy(
+            np.array(sample["dist_map"], dtype=np.float32).reshape(2, IMAGE_HEIGHT, IMAGE_WIDTH)
+        )
 
         # Convert to PIL for transforms
         img = Image.fromarray(image)
@@ -304,10 +308,10 @@ def train(args):
         # ====================================================================
 
         model.train()
-        train_loss = 0.0
-        train_ce_loss = 0.0
-        train_dice_loss = 0.0
-        train_surface_loss = 0.0
+        train_loss = torch.zeros(1, device=device)
+        train_ce_loss = torch.zeros(1, device=device)
+        train_dice_loss = torch.zeros(1, device=device)
+        train_surface_loss = torch.zeros(1, device=device)
         train_intersection = torch.zeros(2, device=device)
         train_union = torch.zeros(2, device=device)
 
@@ -317,8 +321,8 @@ def train(args):
             # Move to device
             images = images.to(device)
             labels = labels.to(device)
-            spatial_weights = torch.from_numpy(np.array(spatial_weights)).to(device)
-            dist_maps = torch.from_numpy(np.array(dist_maps)).to(device)
+            spatial_weights = spatial_weights.to(device)
+            dist_maps = dist_maps.to(device)
 
             optimizer.zero_grad()
 
@@ -333,11 +337,11 @@ def train(args):
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
-            # Accumulate losses
-            train_loss += loss.item()
-            train_ce_loss += ce_loss.item()
-            train_dice_loss += dice_loss.item()
-            train_surface_loss += surface_loss.item()
+            # Accumulate losses (stay on GPU, no sync)
+            train_loss += loss.detach()
+            train_ce_loss += ce_loss.detach()
+            train_dice_loss += dice_loss.detach()
+            train_surface_loss += surface_loss.detach()
 
             # Compute IoU
             preds = get_predictions(outputs)
@@ -345,17 +349,14 @@ def train(args):
             train_intersection += inter
             train_union += uni
 
-            # Update progress bar
-            pbar.set_postfix({
-                'loss': loss.item(),
-                'alpha': alpha,
-            })
+            # Update progress bar (no GPU sync)
+            pbar.set_postfix({'alpha': f'{alpha:.3f}'})
 
-        # Calculate epoch metrics
-        train_loss /= len(train_loader)
-        train_ce_loss /= len(train_loader)
-        train_dice_loss /= len(train_loader)
-        train_surface_loss /= len(train_loader)
+        # Calculate epoch metrics (single GPU->CPU transfer per loss)
+        train_loss = (train_loss / len(train_loader)).item()
+        train_ce_loss = (train_ce_loss / len(train_loader)).item()
+        train_dice_loss = (train_dice_loss / len(train_loader)).item()
+        train_surface_loss = (train_surface_loss / len(train_loader)).item()
         train_iou = finalize_iou(train_intersection, train_union)
 
         # ====================================================================
@@ -363,10 +364,10 @@ def train(args):
         # ====================================================================
 
         model.eval()
-        valid_loss = 0.0
-        valid_ce_loss = 0.0
-        valid_dice_loss = 0.0
-        valid_surface_loss = 0.0
+        valid_loss = torch.zeros(1, device=device)
+        valid_ce_loss = torch.zeros(1, device=device)
+        valid_dice_loss = torch.zeros(1, device=device)
+        valid_surface_loss = torch.zeros(1, device=device)
         valid_intersection = torch.zeros(2, device=device)
         valid_union = torch.zeros(2, device=device)
 
@@ -377,8 +378,8 @@ def train(args):
                 # Move to device
                 images = images.to(device)
                 labels = labels.to(device)
-                spatial_weights = torch.from_numpy(np.array(spatial_weights)).to(device)
-                dist_maps = torch.from_numpy(np.array(dist_maps)).to(device)
+                spatial_weights = spatial_weights.to(device)
+                dist_maps = dist_maps.to(device)
 
                 # Forward pass
                 with torch.amp.autocast('cuda'):
@@ -387,11 +388,11 @@ def train(args):
                         outputs, labels, spatial_weights, dist_maps, alpha
                     )
 
-                # Accumulate losses
-                valid_loss += loss.item()
-                valid_ce_loss += ce_loss.item()
-                valid_dice_loss += dice_loss.item()
-                valid_surface_loss += surface_loss.item()
+                # Accumulate losses (stay on GPU, no sync)
+                valid_loss += loss.detach()
+                valid_ce_loss += ce_loss.detach()
+                valid_dice_loss += dice_loss.detach()
+                valid_surface_loss += surface_loss.detach()
 
                 # Compute IoU
                 preds = get_predictions(outputs)
@@ -399,13 +400,13 @@ def train(args):
                 valid_intersection += inter
                 valid_union += uni
 
-                pbar.set_postfix({'loss': loss.item()})
+                # No GPU sync in progress bar
 
-        # Calculate epoch metrics
-        valid_loss /= len(valid_loader)
-        valid_ce_loss /= len(valid_loader)
-        valid_dice_loss /= len(valid_loader)
-        valid_surface_loss /= len(valid_loader)
+        # Calculate epoch metrics (single GPU->CPU transfer per loss)
+        valid_loss = (valid_loss / len(valid_loader)).item()
+        valid_ce_loss = (valid_ce_loss / len(valid_loader)).item()
+        valid_dice_loss = (valid_dice_loss / len(valid_loader)).item()
+        valid_surface_loss = (valid_surface_loss / len(valid_loader)).item()
         valid_iou = finalize_iou(valid_intersection, valid_union)
 
         # ====================================================================
