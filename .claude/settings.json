@@ -1,4 +1,5 @@
 {
+  "includeAuthoredBy": false,
   "hooks": {
     "Stop": [
       {
