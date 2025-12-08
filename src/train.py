@@ -269,16 +269,15 @@ def train(args):
         mode='min',
         patience=5,
         factor=0.5,
-        verbose=True,
     )
 
     # Mixed precision training setup
     scaler = torch.amp.GradScaler('cuda') if torch.cuda.is_available() else None
-    use_amp = torch.cuda.is_available()
+    # use_amp = torch.cuda.is_available()
 
-    if use_amp:
-        print("Mixed precision training (AMP) enabled")
-
+    # if use_amp:
+    #     print("Mixed precision training (AMP) enabled")
+    #
     # ========================================================================
     # Alpha Scheduling (for loss weighting)
     # ========================================================================
@@ -328,26 +327,26 @@ def train(args):
             optimizer.zero_grad()
 
             # Forward pass with mixed precision
-            if use_amp:
-                with torch.amp.autocast('cuda'):
-                    outputs = model(images)
-                    loss, ce_loss, dice_loss, surface_loss = criterion(
-                        outputs, labels, spatial_weights, dist_maps, alpha
-                    )
-
-                # Backward pass with gradient scaling
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-            else:
+            # if use_amp:
+            with torch.amp.autocast('cuda'):
                 outputs = model(images)
                 loss, ce_loss, dice_loss, surface_loss = criterion(
                     outputs, labels, spatial_weights, dist_maps, alpha
                 )
 
-                loss.backward()
-                optimizer.step()
-
+            # Backward pass with gradient scaling
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            # else:
+            #     outputs = model(images)
+            #     loss, ce_loss, dice_loss, surface_loss = criterion(
+            #         outputs, labels, spatial_weights, dist_maps, alpha
+            #     )
+            #
+            #     loss.backward()
+            #     optimizer.step()
+            #
             # Accumulate losses
             train_loss += loss.item()
             train_ce_loss += ce_loss.item()
@@ -396,17 +395,17 @@ def train(args):
                 dist_maps = torch.from_numpy(np.array(dist_maps)).to(device)
 
                 # Forward pass
-                if use_amp:
-                    with torch.amp.autocast('cuda'):
-                        outputs = model(images)
-                        loss, ce_loss, dice_loss, surface_loss = criterion(
-                            outputs, labels, spatial_weights, dist_maps, alpha
-                        )
-                else:
+                # if use_amp:
+                with torch.amp.autocast('cuda'):
                     outputs = model(images)
                     loss, ce_loss, dice_loss, surface_loss = criterion(
                         outputs, labels, spatial_weights, dist_maps, alpha
                     )
+                # else:
+                #     outputs = model(images)
+                #     loss, ce_loss, dice_loss, surface_loss = criterion(
+                #         outputs, labels, spatial_weights, dist_maps, alpha
+                #     )
 
                 # Accumulate losses
                 valid_loss += loss.item()

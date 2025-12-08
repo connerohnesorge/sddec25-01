@@ -11,7 +11,7 @@ from PIL import Image as PILImage
 from scipy.ndimage import distance_transform_edt as distance
 from tqdm import tqdm
 
-CHUNK_SIZE = 500
+CHUNK_SIZE = 100  # Reduced from 500 to prevent OOM (~1.5GB per shard)
 IMAGE_HEIGHT = 400
 IMAGE_WIDTH = 640
 
