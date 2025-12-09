@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-VisionAssist Live Demo - TinyEfficientViT Semantic Segmentation
+VisionAssist Live Demo - TinyEfficientViT with Native Sparse Attention (NSA)
 
 This demo application performs real-time semantic segmentation on webcam input
-using the TinyEfficientViT model. It demonstrates eye tracking and facial feature
-detection capabilities for the VisionAssist medical assistive technology project.
+using the TinyEfficientViT model with Native Sparse Attention. It demonstrates
+eye tracking and facial feature detection capabilities for the VisionAssist
+medical assistive technology project.
 
 The application captures live video, runs inference using PyTorch,
 and visualizes the segmentation results with overlays.
@@ -24,10 +25,23 @@ from model import TinyEfficientViTSeg
 
 
 class VisionAssistDemo:
-    """Main demo application for VisionAssist live webcam inference."""
+    """Main demo application for VisionAssist live webcam inference with NSA."""
 
     # MediaPipe left eye landmark indices (12 points around the eye)
-    LEFT_EYE_INDICES = [362, 385, 387, 263, 373, 380, 374, 381, 382, 384, 398, 466]
+    LEFT_EYE_INDICES = [
+        362,
+        385,
+        387,
+        263,
+        373,
+        380,
+        374,
+        381,
+        382,
+        384,
+        398,
+        466,
+    ]
 
     # Target aspect ratio for eye region (width:height = 640:400 = 1.6:1)
     TARGET_ASPECT_RATIO = 640 / 400
@@ -46,13 +60,22 @@ class VisionAssistDemo:
     # Display settings
     CAMERA_WIDTH = 1920
     CAMERA_HEIGHT = 1080
-    MIN_EYE_REGION_SIZE = 100  # Minimum bounding box size
-    BBOX_PADDING = 0.2  # 20% padding on each side
+    MIN_EYE_REGION_SIZE = (
+        100  # Minimum bounding box size
+    )
+    BBOX_PADDING = (
+        0.2  # 20% padding on each side
+    )
     OVERLAY_ALPHA = 0.5
 
-    def __init__(self, model_path: str, camera_index: int = 0, verbose: bool = False):
+    def __init__(
+        self,
+        model_path: str,
+        camera_index: int = 0,
+        verbose: bool = False,
+    ):
         """
-        Initialize the VisionAssist demo.
+        Initialize the VisionAssist demo with NSA model.
 
         Args:
             model_path: Path to PyTorch model checkpoint (.pt or .pth file)
@@ -64,8 +87,12 @@ class VisionAssistDemo:
         self.verbose = verbose
 
         # Performance tracking
-        self.fps_buffer = deque(maxlen=30)
-        self.last_frame_time = time.time()
+        self.fps_buffer = deque(
+            maxlen=30
+        )
+        self.last_frame_time = (
+            time.time()
+        )
 
         # Initialize components
         self._init_camera()
@@ -79,12 +106,23 @@ class VisionAssistDemo:
 
         # Pre-allocated buffers for preprocessing (avoid per-frame allocations)
         # Eye crop resized to model size (BGR for initial resize)
-        self._eye_crop_resized = np.empty(
-            (self.MODEL_HEIGHT, self.MODEL_WIDTH, 3), dtype=np.uint8
+        self._eye_crop_resized = (
+            np.empty(
+                (
+                    self.MODEL_HEIGHT,
+                    self.MODEL_WIDTH,
+                    3,
+                ),
+                dtype=np.uint8,
+            )
         )
         # Grayscale conversion buffer
         self._gray_buffer = np.empty(
-            (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
+            (
+                self.MODEL_HEIGHT,
+                self.MODEL_WIDTH,
+            ),
+            dtype=np.uint8,
         )
         # # Gamma correction buffer
         # self._gamma_buffer = np.empty(
@@ -92,49 +130,98 @@ class VisionAssistDemo:
         # )
         # CLAHE buffer (reusing _resized_buffer name for backward compat in normalize step)
         self._resized_buffer = np.empty(
-            (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
+            (
+                self.MODEL_HEIGHT,
+                self.MODEL_WIDTH,
+            ),
+            dtype=np.uint8,
         )
-        self._normalized_buffer = np.empty(
-            (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.float32
+        self._normalized_buffer = (
+            np.empty(
+                (
+                    self.MODEL_HEIGHT,
+                    self.MODEL_WIDTH,
+                ),
+                dtype=np.float32,
+            )
         )
         self._input_tensor = np.empty(
-            (1, 1, self.MODEL_WIDTH, self.MODEL_HEIGHT), dtype=np.float32
+            (
+                1,
+                1,
+                self.MODEL_WIDTH,
+                self.MODEL_HEIGHT,
+            ),
+            dtype=np.float32,
         )
 
         # Pre-allocated buffer for inference output
         self._mask_buffer = np.empty(
-            (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
+            (
+                self.MODEL_HEIGHT,
+                self.MODEL_WIDTH,
+            ),
+            dtype=np.uint8,
         )
         # Pre-allocated buffer for argmax output (before transpose) - int64 for np.argmax out=
         self._argmax_buffer = np.empty(
-            (self.MODEL_WIDTH, self.MODEL_HEIGHT), dtype=np.int64
+            (
+                self.MODEL_WIDTH,
+                self.MODEL_HEIGHT,
+            ),
+            dtype=np.int64,
         )
 
         # Pre-allocated buffer for eye extraction (12 landmark points)
         self._eye_points_buffer = np.empty(
-            (len(self.LEFT_EYE_INDICES), 2), dtype=np.int32
+            (
+                len(
+                    self.LEFT_EYE_INDICES
+                ),
+                2,
+            ),
+            dtype=np.int32,
         )
 
         # Pre-allocated buffers for visualization (sized lazily on first frame)
         self._frame_rgb = None
         self._overlay_buffer = None
         self._green_overlay_cache = None
-        self._green_overlay_size = (0, 0)
+        self._green_overlay_size = (
+            0,
+            0,
+        )
         # Pre-allocated buffer for visualization mask resize (max camera resolution)
-        self._mask_viz_buffer = np.empty(
-            (self.CAMERA_HEIGHT, self.CAMERA_WIDTH), dtype=np.uint8
+        self._mask_viz_buffer = (
+            np.empty(
+                (
+                    self.CAMERA_HEIGHT,
+                    self.CAMERA_WIDTH,
+                ),
+                dtype=np.uint8,
+            )
         )
 
     def _init_camera(self):
         """Initialize webcam capture."""
         if self.verbose:
-            print(f"Initializing camera {self.camera_index}...")
+            print(
+                f"Initializing camera {self.camera_index}..."
+            )
 
         # On macOS, use AVFoundation backend for proper webcam access
-        if platform.system() == "Darwin":
-            self.cap = cv2.VideoCapture(self.camera_index, cv2.CAP_AVFOUNDATION)
+        if (
+            platform.system()
+            == "Darwin"
+        ):
+            self.cap = cv2.VideoCapture(
+                self.camera_index,
+                cv2.CAP_AVFOUNDATION,
+            )
         else:
-            self.cap = cv2.VideoCapture(self.camera_index)
+            self.cap = cv2.VideoCapture(
+                self.camera_index
+            )
 
         if not self.cap.isOpened():
             raise RuntimeError(
@@ -143,11 +230,25 @@ class VisionAssistDemo:
             )
 
         # Set resolution to Full HD
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.CAMERA_WIDTH)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.CAMERA_HEIGHT)
+        self.cap.set(
+            cv2.CAP_PROP_FRAME_WIDTH,
+            self.CAMERA_WIDTH,
+        )
+        self.cap.set(
+            cv2.CAP_PROP_FRAME_HEIGHT,
+            self.CAMERA_HEIGHT,
+        )
 
-        actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        actual_width = int(
+            self.cap.get(
+                cv2.CAP_PROP_FRAME_WIDTH
+            )
+        )
+        actual_height = int(
+            self.cap.get(
+                cv2.CAP_PROP_FRAME_HEIGHT
+            )
+        )
 
         if self.verbose:
             print(
@@ -156,59 +257,97 @@ class VisionAssistDemo:
             )
 
     def _init_model(self):
-        """Initialize PyTorch model."""
+        """Initialize PyTorch model with NSA."""
         if self.verbose:
-            print(f"Loading PyTorch model from {self.model_path}...")
+            print(
+                f"Loading PyTorch model (NSA) from {self.model_path}..."
+            )
 
         # Determine device (CUDA if available, else CPU)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device(
+            "cuda"
+            if torch.cuda.is_available()
+            else "cpu"
+        )
         self.execution_provider = (
             "CUDAExecutionProvider"
-            if self.device.type == "cuda"
+            if self.device.type
+            == "cuda"
             else "CPUExecutionProvider"
         )
 
         if self.verbose:
-            print(f"Using device: {self.device}")
+            print(
+                f"Using device: {self.device}"
+            )
 
-        # Create model architecture
-        self.model = TinyEfficientViTSeg(
-            in_channels=1,
-            num_classes=2,
-            embed_dims=(8, 16, 24),
-            depths=(1, 1, 1),
-            num_heads=(1, 1, 2),
-            key_dims=(4, 4, 4),
-            attn_ratios=(2, 2, 2),
-            window_sizes=(7, 7, 7),
-            mlp_ratios=(2, 2, 2),
-            decoder_dim=16,
+        # Create model architecture with Native Sparse Attention
+        self.model = (
+            TinyEfficientViTSeg(
+                in_channels=1,
+                num_classes=2,
+                embed_dims=(8, 16, 24),
+                depths=(1, 1, 1),
+                num_heads=(1, 1, 2),
+                key_dims=(4, 4, 4),
+                attn_ratios=(2, 2, 2),
+                window_sizes=(7, 7, 7),
+                mlp_ratios=(2, 2, 2),
+                decoder_dim=16,
+            )
         )
 
         # Load checkpoint weights
         checkpoint = torch.load(
-            self.model_path, map_location=self.device, weights_only=True
+            self.model_path,
+            map_location=self.device,
+            weights_only=True,
         )
-        if "model_state_dict" in checkpoint:
-            self.model.load_state_dict(checkpoint["model_state_dict"])
+        if (
+            "model_state_dict"
+            in checkpoint
+        ):
+            self.model.load_state_dict(
+                checkpoint[
+                    "model_state_dict"
+                ]
+            )
         else:
-            self.model.load_state_dict(checkpoint)
+            self.model.load_state_dict(
+                checkpoint
+            )
 
         # Move to device and set to eval mode
-        self.model = self.model.to(self.device)
+        self.model = self.model.to(
+            self.device
+        )
         self.model.eval()
 
         if self.verbose:
-            num_params = sum(p.numel() for p in self.model.parameters())
-            print(f"Model loaded with {num_params:,} parameters")
-            print(f"Model input: (B, 1, W, H), output: (B, 2, W, H)")
+            num_params = sum(
+                p.numel()
+                for p in self.model.parameters()
+            )
+            print(
+                f"Model loaded with {num_params:,} parameters"
+            )
+            print(
+                f"Model input: (B, 1, W, H), output: (B, 2, W, H)"
+            )
+            print(
+                "Using Native Sparse Attention (NSA)"
+            )
 
     def _init_face_mesh(self):
         """Initialize MediaPipe Face Mesh."""
         if self.verbose:
-            print("Initializing MediaPipe Face Mesh...")
+            print(
+                "Initializing MediaPipe Face Mesh..."
+            )
 
-        self.mp_face_mesh = mp.solutions.face_mesh
+        self.mp_face_mesh = (
+            mp.solutions.face_mesh
+        )
         self.face_mesh = self.mp_face_mesh.FaceMesh(
             max_num_faces=1,
             refine_landmarks=True,
@@ -217,7 +356,9 @@ class VisionAssistDemo:
         )
 
         if self.verbose:
-            print("MediaPipe Face Mesh initialized")
+            print(
+                "MediaPipe Face Mesh initialized"
+            )
 
     def _init_preprocessing(self):
         """Initialize preprocessing components."""
@@ -236,8 +377,11 @@ class VisionAssistDemo:
         #         f"Preprocessing initialized: gamma={self.GAMMA}, "
         #         f"CLAHE(clip={self.CLAHE_CLIP_LIMIT}, tile={self.CLAHE_TILE_SIZE})"
         #     )
+        pass
 
-    def _extract_eye_region(self, frame, landmarks):
+    def _extract_eye_region(
+        self, frame, landmarks
+    ):
         """
         Extract left eye region from frame using MediaPipe landmarks.
 
@@ -251,28 +395,55 @@ class VisionAssistDemo:
         h, w = frame.shape[:2]
 
         # Extract left eye landmark coordinates into pre-allocated buffer
-        for i, idx in enumerate(self.LEFT_EYE_INDICES):
-            landmark = landmarks.landmark[idx]
-            self._eye_points_buffer[i, 0] = int(landmark.x * w)
-            self._eye_points_buffer[i, 1] = int(landmark.y * h)
+        for i, idx in enumerate(
+            self.LEFT_EYE_INDICES
+        ):
+            landmark = (
+                landmarks.landmark[idx]
+            )
+            self._eye_points_buffer[
+                i, 0
+            ] = int(landmark.x * w)
+            self._eye_points_buffer[
+                i, 1
+            ] = int(landmark.y * h)
 
         if self.verbose:
-            print(f"  First 3 eye landmarks: {self._eye_points_buffer[:3].tolist()}")
+            print(
+                f"  First 3 eye landmarks: {self._eye_points_buffer[:3].tolist()}"
+            )
 
         # Compute bounding box using pre-allocated buffer
-        x_min, y_min = self._eye_points_buffer.min(axis=0)
-        x_max, y_max = self._eye_points_buffer.max(axis=0)
+        x_min, y_min = (
+            self._eye_points_buffer.min(
+                axis=0
+            )
+        )
+        x_max, y_max = (
+            self._eye_points_buffer.max(
+                axis=0
+            )
+        )
 
         bbox_w = x_max - x_min
         bbox_h = y_max - y_min
 
         # Check if eye region is large enough
-        if bbox_w < self.MIN_EYE_REGION_SIZE or bbox_h < self.MIN_EYE_REGION_SIZE:
+        if (
+            bbox_w
+            < self.MIN_EYE_REGION_SIZE
+            or bbox_h
+            < self.MIN_EYE_REGION_SIZE
+        ):
             return None, None
 
         # Add padding (20% on each side)
-        pad_w = int(bbox_w * self.BBOX_PADDING)
-        pad_h = int(bbox_h * self.BBOX_PADDING)
+        pad_w = int(
+            bbox_w * self.BBOX_PADDING
+        )
+        pad_h = int(
+            bbox_h * self.BBOX_PADDING
+        )
 
         x_min = max(0, x_min - pad_w)
         y_min = max(0, y_min - pad_h)
@@ -284,25 +455,49 @@ class VisionAssistDemo:
 
         # Expand to 1.6:1 aspect ratio (640:400)
         current_ratio = bbox_w / bbox_h
-        if current_ratio < self.TARGET_ASPECT_RATIO:
+        if (
+            current_ratio
+            < self.TARGET_ASPECT_RATIO
+        ):
             # Too narrow, expand width
-            target_w = int(bbox_h * self.TARGET_ASPECT_RATIO)
+            target_w = int(
+                bbox_h
+                * self.TARGET_ASPECT_RATIO
+            )
             diff = target_w - bbox_w
-            x_min = max(0, x_min - diff // 2)
-            x_max = min(w, x_max + diff // 2)
+            x_min = max(
+                0, x_min - diff // 2
+            )
+            x_max = min(
+                w, x_max + diff // 2
+            )
             bbox_w = x_max - x_min
         else:
             # Too short, expand height
-            target_h = int(bbox_w / self.TARGET_ASPECT_RATIO)
+            target_h = int(
+                bbox_w
+                / self.TARGET_ASPECT_RATIO
+            )
             diff = target_h - bbox_h
-            y_min = max(0, y_min - diff // 2)
-            y_max = min(h, y_max + diff // 2)
+            y_min = max(
+                0, y_min - diff // 2
+            )
+            y_max = min(
+                h, y_max + diff // 2
+            )
             bbox_h = y_max - y_min
 
         # Extract region
-        eye_crop = frame[y_min:y_max, x_min:x_max]
+        eye_crop = frame[
+            y_min:y_max, x_min:x_max
+        ]
 
-        return eye_crop, (x_min, y_min, bbox_w, bbox_h)
+        return eye_crop, (
+            x_min,
+            y_min,
+            bbox_w,
+            bbox_h,
+        )
 
     def _preprocess(self, eye_crop):
         """
@@ -325,7 +520,10 @@ class VisionAssistDemo:
         # This ensures all subsequent operations work on fixed-size buffers
         cv2.resize(
             eye_crop,
-            (self.MODEL_WIDTH, self.MODEL_HEIGHT),
+            (
+                self.MODEL_WIDTH,
+                self.MODEL_HEIGHT,
+            ),
             dst=self._eye_crop_resized,
             interpolation=cv2.INTER_LINEAR,
         )
@@ -337,7 +535,11 @@ class VisionAssistDemo:
             )
 
         # Step 2: Convert to grayscale (into pre-allocated buffer)
-        cv2.cvtColor(self._eye_crop_resized, cv2.COLOR_BGR2GRAY, dst=self._gray_buffer)
+        cv2.cvtColor(
+            self._eye_crop_resized,
+            cv2.COLOR_BGR2GRAY,
+            dst=self._gray_buffer,
+        )
         if self.verbose:
             t_gray = time.time()
             print(
@@ -365,23 +567,33 @@ class VisionAssistDemo:
 
         # Step 5: Normalize (mean=0.5, std=0.5) -> range [-1, 1]
         # Use in-place operations with pre-allocated buffer
-        np.multiply(self._gray_buffer, 1.0 / 255.0, out=self._normalized_buffer)
+        np.multiply(
+            self._gray_buffer,
+            1.0 / 255.0,
+            out=self._normalized_buffer,
+        )
         np.subtract(
-            self._normalized_buffer, self.NORMALIZE_MEAN, out=self._normalized_buffer
+            self._normalized_buffer,
+            self.NORMALIZE_MEAN,
+            out=self._normalized_buffer,
         )
         np.divide(
-            self._normalized_buffer, self.NORMALIZE_STD, out=self._normalized_buffer
+            self._normalized_buffer,
+            self.NORMALIZE_STD,
+            out=self._normalized_buffer,
         )
         if self.verbose:
             t_normalize = time.time()
             print(
-                f"  Normalize: {(t_normalize - t_clahe)*1000:.2f}ms, "
+                f"  Normalize: {(t_normalize - t_gray)*1000:.2f}ms, "
                 f"range=[{self._normalized_buffer.min():.3f}, {self._normalized_buffer.max():.3f}]"
             )
 
         # Step 6: Fill pre-allocated tensor with transposed data
         # Model expects (B, C, W, H) = (1, 1, 640, 400), so transpose H,W -> W,H
-        self._input_tensor[0, 0] = self._normalized_buffer.T
+        self._input_tensor[0, 0] = (
+            self._normalized_buffer.T
+        )
 
         if self.verbose:
             t_end = time.time()
@@ -392,7 +604,9 @@ class VisionAssistDemo:
 
         return self._input_tensor
 
-    def _run_inference(self, input_tensor):
+    def _run_inference(
+        self, input_tensor
+    ):
         """
         Run model inference on preprocessed input.
 
@@ -407,11 +621,15 @@ class VisionAssistDemo:
         t_start = time.time()
 
         # Convert numpy array to torch tensor
-        input_torch = torch.from_numpy(input_tensor).to(self.device)
+        input_torch = torch.from_numpy(
+            input_tensor
+        ).to(self.device)
 
         # Run inference with no gradient computation
         with torch.no_grad():
-            output = self.model(input_torch)
+            output = self.model(
+                input_torch
+            )
 
         # Convert output to numpy for post-processing
         output_np = output.cpu().numpy()
@@ -419,11 +637,19 @@ class VisionAssistDemo:
         # Post-processing: argmax to get binary mask
         # Model outputs (B, C, W, H) = (1, 2, 640, 400), argmax over classes gives (640, 400)
         # Use pre-allocated _argmax_buffer to store result before transpose
-        np.argmax(output_np[0], axis=0, out=self._argmax_buffer)
+        np.argmax(
+            output_np[0],
+            axis=0,
+            out=self._argmax_buffer,
+        )
         # Transpose and copy to mask buffer (auto-casts int64/int32 to uint8)
-        self._mask_buffer[:] = self._argmax_buffer.T
+        self._mask_buffer[:] = (
+            self._argmax_buffer.T
+        )
 
-        inference_time = (time.time() - t_start) * 1000  # Convert to ms
+        inference_time = (
+            time.time() - t_start
+        ) * 1000  # Convert to ms
 
         if self.verbose:
             print(
@@ -432,9 +658,20 @@ class VisionAssistDemo:
                 f"mask values=[{self._mask_buffer.min()}, {self._mask_buffer.max()}]"
             )
 
-        return self._mask_buffer, inference_time
+        return (
+            self._mask_buffer,
+            inference_time,
+        )
 
-    def _visualize(self, frame, eye_crop, mask, bbox, inference_time, face_detected):
+    def _visualize(
+        self,
+        frame,
+        eye_crop,
+        mask,
+        bbox,
+        inference_time,
+        face_detected,
+    ):
         """
         Visualize segmentation results on frame.
 
@@ -452,10 +689,18 @@ class VisionAssistDemo:
             np.ndarray: Annotated frame
         """
         # Reuse overlay buffer if same size, otherwise reallocate
-        if self._overlay_buffer is None or self._overlay_buffer.shape != frame.shape:
-            self._overlay_buffer = np.empty_like(frame)
+        if (
+            self._overlay_buffer is None
+            or self._overlay_buffer.shape
+            != frame.shape
+        ):
+            self._overlay_buffer = (
+                np.empty_like(frame)
+            )
 
-        np.copyto(self._overlay_buffer, frame)
+        np.copyto(
+            self._overlay_buffer, frame
+        )
         annotated = self._overlay_buffer
 
         # Draw status banner at top center
@@ -467,25 +712,63 @@ class VisionAssistDemo:
         # Semi-transparent black background - draw directly on banner region only
         # Create a view of just the banner region for blending
         banner_region = annotated[
-            banner_y : banner_y + banner_height, banner_x : banner_x + banner_w
+            banner_y : banner_y
+            + banner_height,
+            banner_x : banner_x
+            + banner_w,
         ]
         # Darken the banner region in-place (multiply by 0.5)
-        np.multiply(banner_region, 0.5, out=banner_region, casting="unsafe")
+        np.multiply(
+            banner_region,
+            0.5,
+            out=banner_region,
+            casting="unsafe",
+        )
 
         # Status text
         if not face_detected:
-            status_text = "No Face Detected"
-            status_color = (0, 255, 255)  # Yellow
+            status_text = (
+                "No Face Detected"
+            )
+            status_color = (
+                0,
+                255,
+                255,
+            )  # Yellow
         elif mask is None:
             status_text = "Move Closer"
-            status_color = (0, 255, 255)  # Yellow
+            status_color = (
+                0,
+                255,
+                255,
+            )  # Yellow
         else:
-            status_text = "Face Detected"
-            status_color = (0, 255, 0)  # Green
+            status_text = (
+                "Face Detected (NSA)"
+            )
+            status_color = (
+                0,
+                255,
+                0,
+            )  # Green
 
-        text_size = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)[0]
-        text_x = (banner_w - text_size[0]) // 2
-        text_y = banner_y + (banner_height + text_size[1]) // 2
+        text_size = cv2.getTextSize(
+            status_text,
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.0,
+            2,
+        )[0]
+        text_x = (
+            banner_w - text_size[0]
+        ) // 2
+        text_y = (
+            banner_y
+            + (
+                banner_height
+                + text_size[1]
+            )
+            // 2
+        )
         cv2.putText(
             annotated,
             status_text,
@@ -497,24 +780,51 @@ class VisionAssistDemo:
         )
 
         # If we have a valid mask, overlay it on the eye region
-        if mask is not None and bbox is not None:
+        if (
+            mask is not None
+            and bbox is not None
+        ):
             x, y, w, h = bbox
 
             # Resize mask to match eye crop size (use view of pre-allocated buffer)
-            mask_view = self._mask_viz_buffer[:h, :w]
-            cv2.resize(mask, (w, h), dst=mask_view, interpolation=cv2.INTER_NEAREST)
+            mask_view = (
+                self._mask_viz_buffer[
+                    :h, :w
+                ]
+            )
+            cv2.resize(
+                mask,
+                (w, h),
+                dst=mask_view,
+                interpolation=cv2.INTER_NEAREST,
+            )
 
             # Reuse green overlay cache if same size
-            if self._green_overlay_size != (h, w):
-                self._green_overlay_cache = np.zeros((h, w, 3), dtype=np.uint8)
-                self._green_overlay_size = (h, w)
+            if (
+                self._green_overlay_size
+                != (h, w)
+            ):
+                self._green_overlay_cache = np.zeros(
+                    (h, w, 3),
+                    dtype=np.uint8,
+                )
+                self._green_overlay_size = (
+                    h,
+                    w,
+                )
             else:
-                self._green_overlay_cache.fill(0)
+                self._green_overlay_cache.fill(
+                    0
+                )
 
-            self._green_overlay_cache[mask_view == 1] = (0, 255, 0)
+            self._green_overlay_cache[
+                mask_view == 1
+            ] = (0, 255, 0)
 
             # Blend with original eye region
-            eye_region = annotated[y : y + h, x : x + w]
+            eye_region = annotated[
+                y : y + h, x : x + w
+            ]
             cv2.addWeighted(
                 eye_region,
                 1 - self.OVERLAY_ALPHA,
@@ -525,7 +835,13 @@ class VisionAssistDemo:
             )
 
             # Draw bounding box
-            cv2.rectangle(annotated, (x, y), (x + w, y + h), (0, 255, 0), 3)
+            cv2.rectangle(
+                annotated,
+                (x, y),
+                (x + w, y + h),
+                (0, 255, 0),
+                3,
+            )
 
         # Draw FPS counter (top-left, below banner)
         fps = self._calculate_fps()
@@ -544,7 +860,10 @@ class VisionAssistDemo:
             cv2.putText(
                 annotated,
                 f"Inference: {inference_time:.1f}ms",
-                (10, banner_height + 75),
+                (
+                    10,
+                    banner_height + 75,
+                ),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 1.0,
                 (0, 255, 0),
@@ -552,7 +871,12 @@ class VisionAssistDemo:
             )
 
         # Draw execution provider (below inference time)
-        provider_short = "GPU" if "CUDA" in self.execution_provider else "CPU"
+        provider_short = (
+            "GPU"
+            if "CUDA"
+            in self.execution_provider
+            else "CPU"
+        )
         cv2.putText(
             annotated,
             f"Device: {provider_short}",
@@ -563,60 +887,109 @@ class VisionAssistDemo:
             2,
         )
 
+        # Draw NSA indicator
+        cv2.putText(
+            annotated,
+            "Model: NSA",
+            (10, banner_height + 155),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (255, 200, 0),
+            2,
+        )
+
         return annotated
 
     def _calculate_fps(self):
         """Calculate rolling average FPS."""
         current_time = time.time()
-        delta = current_time - self.last_frame_time
-        self.last_frame_time = current_time
+        delta = (
+            current_time
+            - self.last_frame_time
+        )
+        self.last_frame_time = (
+            current_time
+        )
 
         if delta > 0:
-            self.fps_buffer.append(1.0 / delta)
+            self.fps_buffer.append(
+                1.0 / delta
+            )
 
         if len(self.fps_buffer) > 0:
-            return sum(self.fps_buffer) / len(self.fps_buffer)
+            return sum(
+                self.fps_buffer
+            ) / len(self.fps_buffer)
         return 0.0
 
     def run(self):
         """Main processing loop."""
         print("\n" + "=" * 80)
-        print("VisionAssist Live Demo")
+        print(
+            "VisionAssist Live Demo - Native Sparse Attention (NSA)"
+        )
         print("=" * 80)
-        print(f"Model: {self.model_path}")
-        print(f"Camera: {self.camera_index}")
-        print(f"Execution Provider: {self.execution_provider}")
+        print(
+            f"Model: {self.model_path}"
+        )
+        print(
+            f"Camera: {self.camera_index}"
+        )
+        print(
+            f"Execution Provider: {self.execution_provider}"
+        )
+        print(
+            f"Attention: Native Sparse Attention (NSA)"
+        )
         print("\nControls:")
         print("  ESC - Exit")
         print("  SPACE - Pause/Resume")
         print("=" * 80 + "\n")
 
         # Create named window for proper display on macOS
-        cv2.namedWindow("VisionAssist Live Demo", cv2.WINDOW_NORMAL)
+        cv2.namedWindow(
+            "VisionAssist Live Demo (NSA)",
+            cv2.WINDOW_NORMAL,
+        )
 
         # Allow camera to warm up (important for macOS)
         print("Warming up camera...")
         for i in range(30):
             ret, frame = self.cap.read()
-            if ret and frame is not None:
+            if (
+                ret
+                and frame is not None
+            ):
                 # Check if frame is not black (has actual content)
                 if frame.mean() > 1.0:
-                    print(f"Camera ready after {i+1} warmup frames.\n")
+                    print(
+                        f"Camera ready after {i+1} warmup frames.\n"
+                    )
                     break
             time.sleep(0.1)
         else:
-            print("WARNING: Camera may not be capturing properly.")
-            print("Check System Settings → Privacy & Security → Camera permissions.\n")
+            print(
+                "WARNING: Camera may not be capturing properly."
+            )
+            print(
+                "Check System Settings -> Privacy & Security -> Camera permissions.\n"
+            )
 
         try:
             while True:
                 if not self.paused:
                     # Capture frame
                     if self.verbose:
-                        t_capture = time.time()
-                    ret, frame = self.cap.read()
+                        t_capture = (
+                            time.time()
+                        )
+                    ret, frame = (
+                        self.cap.read()
+                    )
                     if not ret:
-                        print("Failed to capture frame")
+                        print(
+                            "Failed to capture frame"
+                        )
                         # break
                         continue
 
@@ -627,18 +1000,38 @@ class VisionAssistDemo:
                         )
 
                     # Convert to RGB for MediaPipe using pre-allocated buffer
-                    if self._frame_rgb is None or self._frame_rgb.shape != frame.shape:
-                        self._frame_rgb = np.empty_like(frame)
-                    cv2.cvtColor(frame, cv2.COLOR_BGR2RGB, dst=self._frame_rgb)
+                    if (
+                        self._frame_rgb
+                        is None
+                        or self._frame_rgb.shape
+                        != frame.shape
+                    ):
+                        self._frame_rgb = np.empty_like(
+                            frame
+                        )
+                    cv2.cvtColor(
+                        frame,
+                        cv2.COLOR_BGR2RGB,
+                        dst=self._frame_rgb,
+                    )
 
                     # Face detection
                     if self.verbose:
-                        t_face = time.time()
-                    results = self.face_mesh.process(self._frame_rgb)
-                    face_detected = results.multi_face_landmarks is not None
+                        t_face = (
+                            time.time()
+                        )
+                    results = self.face_mesh.process(
+                        self._frame_rgb
+                    )
+                    face_detected = (
+                        results.multi_face_landmarks
+                        is not None
+                    )
 
                     if self.verbose:
-                        t_face_end = time.time()
+                        t_face_end = (
+                            time.time()
+                        )
                         print(
                             f"  Face detection: {(t_face_end - t_face)*1000:.2f}ms, "
                             f"detected={face_detected}"
@@ -648,43 +1041,86 @@ class VisionAssistDemo:
                     eye_crop = None
                     bbox = None
                     mask = None
-                    inference_time = None
+                    inference_time = (
+                        None
+                    )
 
                     # Process if face detected
                     if face_detected:
-                        landmarks = results.multi_face_landmarks[0]
+                        landmarks = results.multi_face_landmarks[
+                            0
+                        ]
 
                         # Extract eye region
-                        eye_crop, bbox = self._extract_eye_region(frame, landmarks)
+                        (
+                            eye_crop,
+                            bbox,
+                        ) = self._extract_eye_region(
+                            frame,
+                            landmarks,
+                        )
 
-                        if eye_crop is not None:
+                        if (
+                            eye_crop
+                            is not None
+                        ):
                             # Preprocess
-                            input_tensor = self._preprocess(eye_crop)
+                            input_tensor = self._preprocess(
+                                eye_crop
+                            )
 
                             # Run inference
-                            mask, inference_time = self._run_inference(input_tensor)
+                            (
+                                mask,
+                                inference_time,
+                            ) = self._run_inference(
+                                input_tensor
+                            )
 
                     # Visualize
                     annotated = self._visualize(
-                        frame, eye_crop, mask, bbox, inference_time, face_detected
+                        frame,
+                        eye_crop,
+                        mask,
+                        bbox,
+                        inference_time,
+                        face_detected,
                     )
 
                     # Display
-                    cv2.imshow("VisionAssist Live Demo", annotated)
+                    cv2.imshow(
+                        "VisionAssist Live Demo (NSA)",
+                        annotated,
+                    )
 
-                    self.frame_count += 1
+                    self.frame_count += (
+                        1
+                    )
                 else:
                     # Paused - just wait
                     cv2.waitKey(100)
 
                 # Handle keyboard input
-                key = cv2.waitKey(1) & 0xFF
+                key = (
+                    cv2.waitKey(1)
+                    & 0xFF
+                )
                 if key == 27:  # ESC
-                    print("\nExiting...")
+                    print(
+                        "\nExiting..."
+                    )
                     break
-                elif key == ord(" "):  # SPACE
-                    self.paused = not self.paused
-                    status = "Paused" if self.paused else "Resumed"
+                elif key == ord(
+                    " "
+                ):  # SPACE
+                    self.paused = (
+                        not self.paused
+                    )
+                    status = (
+                        "Paused"
+                        if self.paused
+                        else "Resumed"
+                    )
                     print(f"\n{status}")
 
         finally:
@@ -693,7 +1129,9 @@ class VisionAssistDemo:
     def _cleanup(self):
         """Release resources."""
         if self.verbose:
-            print("\nCleaning up resources...")
+            print(
+                "\nCleaning up resources..."
+            )
 
         if hasattr(self, "cap"):
             self.cap.release()
@@ -706,9 +1144,9 @@ class VisionAssistDemo:
 
 
 def main():
-    """Main entry point for the VisionAssist live demo."""
+    """Main entry point for the VisionAssist live demo with NSA."""
     parser = argparse.ArgumentParser(
-        description="VisionAssist Live Demo - TinyEfficientViT Semantic Segmentation"
+        description="VisionAssist Live Demo - TinyEfficientViT with Native Sparse Attention"
     )
     parser.add_argument(
         "--model",
@@ -732,7 +1170,9 @@ def main():
 
     # Initialize and run demo
     demo = VisionAssistDemo(
-        model_path=args.model, camera_index=args.camera, verbose=args.verbose
+        model_path=args.model,
+        camera_index=args.camera,
+        verbose=args.verbose,
     )
     demo.run()
 

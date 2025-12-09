@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-VisionAssist Live Demo - TinyEfficientViT Semantic Segmentation
+TinyEfficientViT with NSA - Semantic Segmentation with Preprocessing (Gamma + CLAHE)
 
 This demo application performs real-time semantic segmentation on webcam input
-using the TinyEfficientViT model. It demonstrates eye tracking and facial feature
-detection capabilities for the VisionAssist medical assistive technology project.
+using the TinyEfficientViT model with Native Sparse Attention (NSA). It demonstrates
+eye tracking and facial feature detection capabilities for the VisionAssist
+medical assistive technology project.
 
 The application captures live video, runs inference using PyTorch,
 and visualizes the segmentation results with overlays.
@@ -24,7 +25,7 @@ from model import TinyEfficientViTSeg
 
 
 class VisionAssistDemo:
-    """Main demo application for VisionAssist live webcam inference."""
+    """Main demo application for VisionAssist live webcam inference with NSA."""
 
     # MediaPipe left eye landmark indices (12 points around the eye)
     LEFT_EYE_INDICES = [362, 385, 387, 263, 373, 380, 374, 381, 382, 384, 398, 466]
@@ -33,9 +34,9 @@ class VisionAssistDemo:
     TARGET_ASPECT_RATIO = 640 / 400
 
     # Preprocessing parameters (MUST match training exactly)
-    # GAMMA = 0.8
-    # CLAHE_CLIP_LIMIT = 1.5
-    # CLAHE_TILE_SIZE = (8, 8)
+    GAMMA = 0.8
+    CLAHE_CLIP_LIMIT = 1.5
+    CLAHE_TILE_SIZE = (8, 8)
     NORMALIZE_MEAN = 0.5
     NORMALIZE_STD = 0.5
 
@@ -52,7 +53,7 @@ class VisionAssistDemo:
 
     def __init__(self, model_path: str, camera_index: int = 0, verbose: bool = False):
         """
-        Initialize the VisionAssist demo.
+        Initialize the VisionAssist demo with NSA and preprocessing.
 
         Args:
             model_path: Path to PyTorch model checkpoint (.pt or .pth file)
@@ -87,9 +88,9 @@ class VisionAssistDemo:
             (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
         )
         # # Gamma correction buffer
-        # self._gamma_buffer = np.empty(
-        #     (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
-        # )
+        self._gamma_buffer = np.empty(
+            (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
+        )
         # CLAHE buffer (reusing _resized_buffer name for backward compat in normalize step)
         self._resized_buffer = np.empty(
             (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
@@ -156,9 +157,9 @@ class VisionAssistDemo:
             )
 
     def _init_model(self):
-        """Initialize PyTorch model."""
+        """Initialize PyTorch model with NSA."""
         if self.verbose:
-            print(f"Loading PyTorch model from {self.model_path}...")
+            print(f"Loading PyTorch model (NSA) from {self.model_path}...")
 
         # Determine device (CUDA if available, else CPU)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -171,7 +172,7 @@ class VisionAssistDemo:
         if self.verbose:
             print(f"Using device: {self.device}")
 
-        # Create model architecture
+        # Create model architecture with Native Sparse Attention
         self.model = TinyEfficientViTSeg(
             in_channels=1,
             num_classes=2,
@@ -202,6 +203,7 @@ class VisionAssistDemo:
             num_params = sum(p.numel() for p in self.model.parameters())
             print(f"Model loaded with {num_params:,} parameters")
             print(f"Model input: (B, 1, W, H), output: (B, 2, W, H)")
+            print("Using Native Sparse Attention (NSA)")
 
     def _init_face_mesh(self):
         """Initialize MediaPipe Face Mesh."""
@@ -222,20 +224,20 @@ class VisionAssistDemo:
     def _init_preprocessing(self):
         """Initialize preprocessing components."""
         # # Gamma correction lookup table
-        # self.gamma_table = (255.0 * (np.linspace(0, 1, 256) ** self.GAMMA)).astype(
-        #     np.uint8
-        # )
-        #
-        # # CLAHE (Contrast Limited Adaptive Histogram Equalization)
-        # self.clahe = cv2.createCLAHE(
-        #     clipLimit=self.CLAHE_CLIP_LIMIT, tileGridSize=self.CLAHE_TILE_SIZE
-        # )
-        #
-        # if self.verbose:
-        #     print(
-        #         f"Preprocessing initialized: gamma={self.GAMMA}, "
-        #         f"CLAHE(clip={self.CLAHE_CLIP_LIMIT}, tile={self.CLAHE_TILE_SIZE})"
-        #     )
+        self.gamma_table = (255.0 * (np.linspace(0, 1, 256) ** self.GAMMA)).astype(
+            np.uint8
+        )
+
+        # CLAHE (Contrast Limited Adaptive Histogram Equalization)
+        self.clahe = cv2.createCLAHE(
+            clipLimit=self.CLAHE_CLIP_LIMIT, tileGridSize=self.CLAHE_TILE_SIZE
+        )
+
+        if self.verbose:
+            print(
+                f"Preprocessing initialized: gamma={self.GAMMA}, "
+                f"CLAHE(clip={self.CLAHE_CLIP_LIMIT}, tile={self.CLAHE_TILE_SIZE})"
+            )
 
     def _extract_eye_region(self, frame, landmarks):
         """
@@ -346,26 +348,26 @@ class VisionAssistDemo:
             )
 
         # # Step 3: Gamma correction (gamma=0.8) (into pre-allocated buffer)
-        # cv2.LUT(self._gray_buffer, self.gamma_table, dst=self._gamma_buffer)
-        # if self.verbose:
-        #     t_gamma = time.time()
-        #     print(
-        #         f"  Gamma correction: {(t_gamma - t_gray)*1000:.2f}ms, "
-        #         f"range=[{self._gamma_buffer.min()}, {self._gamma_buffer.max()}]"
-        #     )
-        #
+        cv2.LUT(self._gray_buffer, self.gamma_table, dst=self._gamma_buffer)
+        if self.verbose:
+            t_gamma = time.time()
+            print(
+                f"  Gamma correction: {(t_gamma - t_gray)*1000:.2f}ms, "
+                f"range=[{self._gamma_buffer.min()}, {self._gamma_buffer.max()}]"
+            )
+
         # # Step 4: CLAHE (Contrast Limited Adaptive Histogram Equalization) (into pre-allocated buffer)
-        # self.clahe.apply(self._gamma_buffer, dst=self._resized_buffer)
-        # if self.verbose:
-        #     t_clahe = time.time()
-        #     print(
-        #         f"  CLAHE: {(t_clahe - t_gamma)*1000:.2f}ms, "
-        #         f"range=[{self._resized_buffer.min()}, {self._resized_buffer.max()}]"
-        #     )
+        self.clahe.apply(self._gamma_buffer, dst=self._resized_buffer)
+        if self.verbose:
+            t_clahe = time.time()
+            print(
+                f"  CLAHE: {(t_clahe - t_gamma)*1000:.2f}ms, "
+                f"range=[{self._resized_buffer.min()}, {self._resized_buffer.max()}]"
+            )
 
         # Step 5: Normalize (mean=0.5, std=0.5) -> range [-1, 1]
         # Use in-place operations with pre-allocated buffer
-        np.multiply(self._gray_buffer, 1.0 / 255.0, out=self._normalized_buffer)
+        np.multiply(self._resized_buffer, 1.0 / 255.0, out=self._normalized_buffer)
         np.subtract(
             self._normalized_buffer, self.NORMALIZE_MEAN, out=self._normalized_buffer
         )
@@ -480,7 +482,7 @@ class VisionAssistDemo:
             status_text = "Move Closer"
             status_color = (0, 255, 255)  # Yellow
         else:
-            status_text = "Face Detected"
+            status_text = "Face Detected (NSA+PP)"
             status_color = (0, 255, 0)  # Green
 
         text_size = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)[0]
@@ -563,6 +565,17 @@ class VisionAssistDemo:
             2,
         )
 
+        # Draw NSA + Preprocessing indicator
+        cv2.putText(
+            annotated,
+            "Mode: NSA + Preprocessing",
+            (10, banner_height + 155),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.8,
+            (255, 200, 0),
+            2,
+        )
+
         return annotated
 
     def _calculate_fps(self):
@@ -581,18 +594,20 @@ class VisionAssistDemo:
     def run(self):
         """Main processing loop."""
         print("\n" + "=" * 80)
-        print("VisionAssist Live Demo")
+        print("VisionAssist Live Demo - NSA with Preprocessing (Gamma + CLAHE)")
         print("=" * 80)
         print(f"Model: {self.model_path}")
         print(f"Camera: {self.camera_index}")
         print(f"Execution Provider: {self.execution_provider}")
+        print(f"Attention: Native Sparse Attention (NSA)")
+        print(f"Preprocessing: Gamma={self.GAMMA}, CLAHE(clip={self.CLAHE_CLIP_LIMIT})")
         print("\nControls:")
         print("  ESC - Exit")
         print("  SPACE - Pause/Resume")
         print("=" * 80 + "\n")
 
         # Create named window for proper display on macOS
-        cv2.namedWindow("VisionAssist Live Demo", cv2.WINDOW_NORMAL)
+        cv2.namedWindow("VisionAssist NSA + Preprocessing", cv2.WINDOW_NORMAL)
 
         # Allow camera to warm up (important for macOS)
         print("Warming up camera...")
@@ -606,7 +621,7 @@ class VisionAssistDemo:
             time.sleep(0.1)
         else:
             print("WARNING: Camera may not be capturing properly.")
-            print("Check System Settings → Privacy & Security → Camera permissions.\n")
+            print("Check System Settings -> Privacy & Security -> Camera permissions.\n")
 
         try:
             while True:
@@ -670,7 +685,10 @@ class VisionAssistDemo:
                     )
 
                     # Display
-                    cv2.imshow("VisionAssist Live Demo", annotated)
+                    cv2.imshow(
+                        "VisionAssist NSA + Preprocessing",
+                        annotated,
+                    )
 
                     self.frame_count += 1
                 else:
@@ -706,9 +724,9 @@ class VisionAssistDemo:
 
 
 def main():
-    """Main entry point for the VisionAssist live demo."""
+    """Main entry point for the VisionAssist live demo with NSA and preprocessing."""
     parser = argparse.ArgumentParser(
-        description="VisionAssist Live Demo - TinyEfficientViT Semantic Segmentation"
+        description="TinyEfficientViT NSA with Preprocessing (Gamma + CLAHE)"
     )
     parser.add_argument(
         "--model",

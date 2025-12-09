@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Local training script for TinyEfficientViTSeg on OpenEDS dataset.
+Training script for DSA Segmentation Model on OpenEDS dataset.
 
-This script trains the TinyEfficientViTSeg model for pupil segmentation
-using the precomputed OpenEDS dataset from HuggingFace. It runs locally
-without any cloud dependencies (Modal, etc.).
+This script trains the DeepSeek Sparse Attention (DSA) model for pupil
+segmentation using the precomputed OpenEDS dataset from HuggingFace.
 
-Requirements:
-- PyTorch with CUDA support (optional but recommended)
-- HuggingFace datasets
-- model.py in the same directory
+Key features:
+- Two-stage training (dense warm-up + sparse training) as per DSA paper
+- Mixed precision training for efficiency
+- Indexer alignment loss for DSA optimization
+- Checkpoint resume support
 
 Dataset: Conner/openeds-precomputed (HuggingFace)
 Image size: 640x400 grayscale
@@ -28,35 +28,16 @@ from PIL import Image
 from tqdm import tqdm
 from datasets import load_dataset
 
-# Import model and loss from local model.py
-from model import TinyEfficientViTSeg, CombinedLoss
+from model import DSASegmentationModel, CombinedLoss, create_dsa_tiny, create_dsa_small, create_dsa_base
 
-# ============================================================================
 # Constants
-# ============================================================================
-
 IMAGE_HEIGHT = 400
 IMAGE_WIDTH = 640
 HF_DATASET_REPO = "Conner/openeds-precomputed"
 
-# ============================================================================
-# Helper Functions (from training/train.py)
-# ============================================================================
-
 
 def compute_iou_tensors(predictions, targets, num_classes=2):
-    """
-    Compute per-class intersection and union for IoU calculation.
-
-    Args:
-        predictions: Predicted class labels (B, H, W)
-        targets: Ground truth labels (B, H, W)
-        num_classes: Number of classes
-
-    Returns:
-        intersection: Per-class intersection counts (num_classes,)
-        union: Per-class union counts (num_classes,)
-    """
+    """Compute per-class intersection and union for IoU calculation."""
     intersection = torch.zeros(num_classes, device=predictions.device)
     union = torch.zeros(num_classes, device=predictions.device)
 
@@ -70,15 +51,7 @@ def compute_iou_tensors(predictions, targets, num_classes=2):
 
 
 def get_predictions(output):
-    """
-    Convert model logits to predicted class labels.
-
-    Args:
-        output: Model output logits (B, C, H, W)
-
-    Returns:
-        Predicted class labels (B, H, W)
-    """
+    """Convert model logits to predicted class labels."""
     bs, _, h, w = output.size()
     _, indices = output.max(1)
     indices = indices.view(bs, h, w)
@@ -86,41 +59,17 @@ def get_predictions(output):
 
 
 def get_nparams(model):
-    """
-    Count total trainable parameters in model.
-
-    Args:
-        model: PyTorch model
-
-    Returns:
-        Number of trainable parameters
-    """
+    """Count total trainable parameters in model."""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
 def compute_iou_cpu(intersection_vals, union_vals):
-    """
-    Calculate mean IoU from intersection and union values on CPU.
-
-    This function operates on CPU values (no GPU sync required).
-
-    Args:
-        intersection_vals: List of intersection counts [class0, class1]
-        union_vals: List of union counts [class0, class1]
-
-    Returns:
-        Mean IoU across all classes
-    """
+    """Calculate mean IoU from intersection and union values on CPU."""
     iou_per_class = [
         intersection_vals[i] / max(union_vals[i], 1.0)
         for i in range(len(intersection_vals))
     ]
     return sum(iou_per_class) / len(iou_per_class)
-
-
-# ============================================================================
-# Dataset Class
-# ============================================================================
 
 
 class MaskToTensor:
@@ -131,19 +80,9 @@ class MaskToTensor:
 
 
 class IrisDataset(Dataset):
-    """
-    Dataset class for OpenEDS precomputed dataset.
-    Loads raw images with minimal preprocessing (only normalization).
-    """
+    """Dataset class for OpenEDS precomputed dataset."""
 
     def __init__(self, hf_dataset, transform=None):
-        """
-        Initialize dataset.
-
-        Args:
-            hf_dataset: HuggingFace dataset split
-            transform: Torchvision transforms for images
-        """
         self.dataset = hf_dataset
         self.transform = transform
 
@@ -151,15 +90,6 @@ class IrisDataset(Dataset):
         return len(self.dataset)
 
     def __getitem__(self, idx):
-        """
-        Get a single sample.
-
-        Returns:
-            img: Transformed image tensor (1, H, W)
-            label_tensor: Ground truth mask (H, W)
-            spatial_weights: Spatial weighting map (H, W)
-            dist_map: Distance map for surface loss (2, H, W)
-        """
         sample = self.dataset[idx]
 
         # Reshape flat arrays to images
@@ -192,12 +122,7 @@ class IrisDataset(Dataset):
 
 
 def train(args):
-    """
-    Main training loop.
-
-    Args:
-        args: Command line arguments
-    """
+    """Main training loop."""
     # Device setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -208,20 +133,16 @@ def train(args):
         torch.manual_seed(args.seed)
 
     print(f"\nLoading dataset from {HF_DATASET_REPO}...")
-    print("(First run will download ~3GB, subsequent runs use cached data)")
-
     hf_dataset = load_dataset(HF_DATASET_REPO)
 
     print(f"Train samples: {len(hf_dataset['train'])}")
     print(f"Validation samples: {len(hf_dataset['validation'])}")
 
-    # Transforms - only normalization (no preprocessing)
-    transform = transforms.Compose(
-        [
-            transforms.ToTensor(),
-            transforms.Normalize([0.5], [0.5]),  # Normalize grayscale to [-1, 1]
-        ]
-    )
+    # Transforms
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize([0.5], [0.5]),
+    ])
 
     train_dataset = IrisDataset(hf_dataset["train"], transform=transform)
     valid_dataset = IrisDataset(hf_dataset["validation"], transform=transform)
@@ -242,49 +163,58 @@ def train(args):
         pin_memory=True if torch.cuda.is_available() else False,
     )
 
-    # ========================================================================
     # Initialize Model
-    # ========================================================================
+    print(f"\nInitializing DSA model (variant: {args.model_size})...")
 
-    print("\nInitializing TinyEfficientViTSeg model...")
+    if args.model_size == "tiny":
+        model = create_dsa_tiny(in_channels=1, num_classes=2)
+    elif args.model_size == "small":
+        model = create_dsa_small(in_channels=1, num_classes=2)
+    elif args.model_size == "base":
+        model = create_dsa_base(in_channels=1, num_classes=2)
+    else:
+        model = DSASegmentationModel(
+            in_channels=1,
+            num_classes=2,
+            embed_dims=(16, 32, 48),
+            depths=(1, 1, 1),
+            num_heads=(2, 2, 4),
+            top_k=(64, 32, 16),
+            decoder_dim=24,
+        )
 
-    model = TinyEfficientViTSeg(
-        in_channels=1,
-        num_classes=2,
-        embed_dims=(8, 16, 24),
-        depths=(1, 1, 1),
-        num_heads=(1, 1, 2),
-        key_dims=(4, 4, 4),
-        attn_ratios=(2, 2, 2),
-        window_sizes=(7, 7, 7),
-        mlp_ratios=(2, 2, 2),
-        decoder_dim=16,
-    ).to(device)
-
+    model = model.to(device)
     nparams = get_nparams(model)
     print(f"Model parameters: {nparams:,}")
 
-    # ========================================================================
     # Loss, Optimizer, Scheduler
-    # ========================================================================
+    criterion = CombinedLoss(indexer_weight=args.indexer_weight)
 
-    criterion = CombinedLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    # Separate parameter groups for main model and indexer (per DSA paper)
+    main_params = []
+    indexer_params = []
+    for name, param in model.named_parameters():
+        if 'indexer' in name:
+            indexer_params.append(param)
+        else:
+            main_params.append(param)
+
+    optimizer = torch.optim.AdamW([
+        {'params': main_params, 'lr': args.lr},
+        {'params': indexer_params, 'lr': args.indexer_lr},
+    ], weight_decay=args.weight_decay)
+
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer,
-        mode="min",
-        patience=5,
-        factor=0.5,
+        T_max=args.epochs,
+        eta_min=args.lr * 0.01,
     )
 
-    # Mixed precision training setup
+    # Mixed precision
     use_amp = torch.cuda.is_available()
     scaler = torch.amp.GradScaler("cuda") if use_amp else None
 
-    # ========================================================================
-    # Resume from Checkpoint (if specified)
-    # ========================================================================
-
+    # Resume from checkpoint
     start_epoch = 0
     best_iou = 0.0
 
@@ -298,23 +228,14 @@ def train(args):
         best_iou = checkpoint.get("valid_iou", 0.0)
         print(f"Resumed from epoch {checkpoint['epoch'] + 1}, best IoU: {best_iou:.4f}")
 
-    # ========================================================================
-    # Alpha Scheduling (for loss weighting)
-    # ========================================================================
-
-    # Alpha decays from 1 to 0 over 125 epochs
-    # Controls balance between dice loss (alpha) and surface loss (1-alpha)
+    # Alpha scheduling (dice vs surface loss balance)
     alpha_schedule = np.zeros(args.epochs)
-    alpha_schedule[0 : min(125, args.epochs)] = 1 - np.arange(
-        1, min(125, args.epochs) + 1
-    ) / min(125, args.epochs)
-    if args.epochs > 125:
-        alpha_schedule[125:] = 0
+    warmup_epochs = min(125, args.epochs)
+    alpha_schedule[:warmup_epochs] = 1 - np.arange(1, warmup_epochs + 1) / warmup_epochs
+    if args.epochs > warmup_epochs:
+        alpha_schedule[warmup_epochs:] = 0
 
-    # ========================================================================
-    # Training Loop
-    # ========================================================================
-
+    # Training loop
     print("\n" + "=" * 80)
     print("Starting Training")
     print("=" * 80)
@@ -324,10 +245,25 @@ def train(args):
     for epoch in range(start_epoch, args.epochs):
         alpha = alpha_schedule[epoch]
 
-        # ====================================================================
-        # Training Phase
-        # ====================================================================
+        # Determine training mode
+        # Dense warm-up: First few epochs train indexer only
+        # Sparse training: Rest of training uses sparse attention
+        is_warmup = epoch < args.warmup_epochs
 
+        if is_warmup:
+            print(f"\n[Epoch {epoch+1}] Dense Warm-up Phase (indexer training)")
+            # Freeze main model, only train indexer
+            for name, param in model.named_parameters():
+                if 'indexer' not in name:
+                    param.requires_grad = False
+                else:
+                    param.requires_grad = True
+        else:
+            # Unfreeze all for sparse training
+            for param in model.parameters():
+                param.requires_grad = True
+
+        # Training phase
         model.train()
         train_loss = torch.zeros(1, device=device)
         train_ce_loss = torch.zeros(1, device=device)
@@ -339,7 +275,6 @@ def train(args):
         pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Train]")
 
         for images, labels, spatial_weights, dist_maps in pbar:
-            # Move to device (non_blocking for async CPU->GPU transfer)
             images = images.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True)
             spatial_weights = spatial_weights.to(device, non_blocking=True)
@@ -347,14 +282,18 @@ def train(args):
 
             optimizer.zero_grad()
 
-            # Forward pass with mixed precision
             with torch.amp.autocast("cuda", enabled=use_amp):
                 outputs = model(images)
+
+                # Get indexer loss during training
+                indexer_loss = None
+                if args.use_indexer_loss and not is_warmup:
+                    indexer_loss = model.get_indexer_loss(images)
+
                 loss, ce_loss, dice_loss, surface_loss = criterion(
-                    outputs, labels, spatial_weights, dist_maps, alpha
+                    outputs, labels, spatial_weights, dist_maps, alpha, indexer_loss
                 )
 
-            # Backward pass with gradient scaling
             if use_amp:
                 scaler.scale(loss).backward()
                 scaler.step(optimizer)
@@ -362,28 +301,22 @@ def train(args):
             else:
                 loss.backward()
                 optimizer.step()
-            # Accumulate losses (stay on GPU, no sync)
+
             train_loss += loss.detach()
             train_ce_loss += ce_loss.detach()
             train_dice_loss += dice_loss.detach()
             train_surface_loss += surface_loss.detach()
 
-            # Compute IoU
             preds = get_predictions(outputs)
             inter, uni = compute_iou_tensors(preds, labels)
             train_intersection += inter
             train_union += uni
 
-            # Update progress bar (no GPU sync)
             pbar.set_postfix({"alpha": f"{alpha:.3f}"})
 
-        # Store batch count for later metrics calculation (no GPU sync yet)
         n_train_batches = len(train_loader)
 
-        # ====================================================================
-        # Validation Phase
-        # ====================================================================
-
+        # Validation phase
         model.eval()
         valid_loss = torch.zeros(1, device=device)
         valid_ce_loss = torch.zeros(1, device=device)
@@ -396,84 +329,53 @@ def train(args):
             pbar = tqdm(valid_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Valid]")
 
             for images, labels, spatial_weights, dist_maps in pbar:
-                # Move to device (non_blocking for async CPU->GPU transfer)
                 images = images.to(device, non_blocking=True)
                 labels = labels.to(device, non_blocking=True)
                 spatial_weights = spatial_weights.to(device, non_blocking=True)
                 dist_maps = dist_maps.to(device, non_blocking=True)
 
-                # Forward pass
                 with torch.amp.autocast("cuda", enabled=use_amp):
                     outputs = model(images)
                     loss, ce_loss, dice_loss, surface_loss = criterion(
                         outputs, labels, spatial_weights, dist_maps, alpha
                     )
 
-                # Accumulate losses (stay on GPU, no sync)
                 valid_loss += loss.detach()
                 valid_ce_loss += ce_loss.detach()
                 valid_dice_loss += dice_loss.detach()
                 valid_surface_loss += surface_loss.detach()
 
-                # Compute IoU
                 preds = get_predictions(outputs)
                 inter, uni = compute_iou_tensors(preds, labels)
                 valid_intersection += inter
                 valid_union += uni
 
-                # No GPU sync in progress bar
-
-        # ====================================================================
-        # Single Batched GPU->CPU Transfer (THE ONLY SYNC POINT PER EPOCH)
-        # ====================================================================
-
-        # Batch ALL epoch metrics into one tensor: 16 values total
+        # Metrics calculation
         n_valid_batches = len(valid_loader)
-        all_metrics_gpu = torch.cat(
-            [
-                # Train losses (4 values)
-                train_loss / n_train_batches,
-                train_ce_loss / n_train_batches,
-                train_dice_loss / n_train_batches,
-                train_surface_loss / n_train_batches,
-                # Valid losses (4 values)
-                valid_loss / n_valid_batches,
-                valid_ce_loss / n_valid_batches,
-                valid_dice_loss / n_valid_batches,
-                valid_surface_loss / n_valid_batches,
-                # Train IoU components (4 values: 2 intersection + 2 union)
-                train_intersection,
-                train_union,
-                # Valid IoU components (4 values: 2 intersection + 2 union)
-                valid_intersection,
-                valid_union,
-            ]
-        )
+        all_metrics_gpu = torch.cat([
+            train_loss / n_train_batches,
+            train_ce_loss / n_train_batches,
+            train_dice_loss / n_train_batches,
+            train_surface_loss / n_train_batches,
+            valid_loss / n_valid_batches,
+            valid_ce_loss / n_valid_batches,
+            valid_dice_loss / n_valid_batches,
+            valid_surface_loss / n_valid_batches,
+            train_intersection,
+            train_union,
+            valid_intersection,
+            valid_union,
+        ])
 
-        # Single GPU->CPU transfer for entire epoch
         all_metrics = all_metrics_gpu.tolist()
 
-        # Unpack metrics
         (
-            train_loss_val,
-            train_ce_val,
-            train_dice_val,
-            train_surface_val,
-            valid_loss_val,
-            valid_ce_val,
-            valid_dice_val,
-            valid_surface_val,
-            train_inter_0,
-            train_inter_1,
-            train_union_0,
-            train_union_1,
-            valid_inter_0,
-            valid_inter_1,
-            valid_union_0,
-            valid_union_1,
+            train_loss_val, train_ce_val, train_dice_val, train_surface_val,
+            valid_loss_val, valid_ce_val, valid_dice_val, valid_surface_val,
+            train_inter_0, train_inter_1, train_union_0, train_union_1,
+            valid_inter_0, valid_inter_1, valid_union_0, valid_union_1,
         ) = all_metrics
 
-        # Compute IoU on CPU (no GPU sync)
         train_iou = compute_iou_cpu(
             [train_inter_0, train_inter_1], [train_union_0, train_union_1]
         )
@@ -481,17 +383,10 @@ def train(args):
             [valid_inter_0, valid_inter_1], [valid_union_0, valid_union_1]
         )
 
-        # ====================================================================
-        # Learning Rate Scheduling
-        # ====================================================================
-
-        scheduler.step(valid_loss_val)
+        scheduler.step()
         current_lr = optimizer.param_groups[0]["lr"]
 
-        # ====================================================================
         # Logging
-        # ====================================================================
-
         print(f"\nEpoch {epoch+1}/{args.epochs}")
         print(f"  Train Loss: {train_loss_val:.4f} | Valid Loss: {valid_loss_val:.4f}")
         print(f"  Train IoU:  {train_iou:.4f} | Valid IoU:  {valid_iou:.4f}")
@@ -500,14 +395,10 @@ def train(args):
         print(f"  Surf Loss:  {train_surface_val:.4f} | {valid_surface_val:.4f}")
         print(f"  LR: {current_lr:.6f} | Alpha: {alpha:.4f}")
 
-        # ====================================================================
-        # Save Best Model
-        # ====================================================================
-
+        # Save best model
         if valid_iou > best_iou:
             best_iou = valid_iou
 
-            # Save PyTorch checkpoint
             torch.save(
                 {
                     "epoch": epoch,
@@ -522,7 +413,7 @@ def train(args):
 
             print(f"  >> Saved best model with IoU={best_iou:.4f}")
 
-        # Save periodic checkpoints
+        # Periodic checkpoints
         if (epoch + 1) % 5 == 0:
             torch.save(
                 {
@@ -537,27 +428,27 @@ def train(args):
             )
             print(f"  >> Saved checkpoint at epoch {epoch+1}")
 
-    # ========================================================================
-    # Training Complete
-    # ========================================================================
-
     print("\n" + "=" * 80)
     print("Training Complete!")
     print("=" * 80)
     print(f"Best validation IoU: {best_iou:.4f}")
-    print(f"\nPyTorch checkpoint saved to: {args.checkpoint_dir}/best_model.pth")
-
-
-# ============================================================================
-# Main Entry Point
-# ============================================================================
+    print(f"\nCheckpoint saved to: {args.checkpoint_dir}/best_model.pth")
 
 
 def main():
     """Parse arguments and start training."""
     parser = argparse.ArgumentParser(
-        description="Train TinyEfficientViTSeg for pupil segmentation",
+        description="Train DSA Segmentation Model for pupil segmentation",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    # Model
+    parser.add_argument(
+        "--model-size",
+        type=str,
+        default="small",
+        choices=["tiny", "small", "base"],
+        help="Model size variant",
     )
 
     # Training hyperparameters
@@ -568,28 +459,69 @@ def main():
         help="Batch size for training and validation",
     )
     parser.add_argument(
-        "--epochs", type=int, default=15, help="Number of training epochs"
+        "--epochs",
+        type=int,
+        default=15,
+        help="Number of training epochs",
     )
     parser.add_argument(
-            "--lr",
-            type=float,
-            default=1e-2,
-            help="Initial learning rate",
+        "--lr",
+        type=float,
+        default=1e-3,
+        help="Learning rate for main model",
     )
     parser.add_argument(
-        "--seed", type=int, default=42, help="Random seed for reproducibility"
+        "--indexer-lr",
+        type=float,
+        default=1e-3,
+        help="Learning rate for indexer (per DSA paper)",
+    )
+    parser.add_argument(
+        "--weight-decay",
+        type=float,
+        default=0.01,
+        help="Weight decay",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducibility",
+    )
+
+    # DSA specific
+    parser.add_argument(
+        "--warmup-epochs",
+        type=int,
+        default=2,
+        help="Dense warm-up epochs for indexer initialization",
+    )
+    parser.add_argument(
+        "--use-indexer-loss",
+        action="store_true",
+        default=True,
+        help="Use indexer alignment loss during training",
+    )
+    parser.add_argument(
+        "--indexer-weight",
+        type=float,
+        default=0.1,
+        help="Weight for indexer alignment loss",
     )
 
     # Data loading
     parser.add_argument(
-        "--num-workers", type=int, default=4, help="Number of dataloader workers"
+        "--num-workers",
+        type=int,
+        default=4,
+        help="Number of dataloader workers",
     )
 
     # Checkpointing
     parser.add_argument(
         "--checkpoint-dir",
         type=str,
-        default="checkpoints",
+        default="checkpoints_dsa",
         help="Directory to save checkpoints",
     )
     parser.add_argument(
@@ -603,20 +535,21 @@ def main():
 
     # Print configuration
     print("=" * 80)
-    print("TinyEfficientViTSeg Training Configuration")
+    print("DSA Segmentation Model Training Configuration")
     print("=" * 80)
+    print(f"Model size: {args.model_size}")
     print(f"Dataset: {HF_DATASET_REPO}")
     print(f"Image size: {IMAGE_WIDTH}x{IMAGE_HEIGHT}")
     print(f"Batch size: {args.batch_size}")
     print(f"Epochs: {args.epochs}")
-    print(f"Learning rate: {args.lr}")
-    print(f"Num workers: {args.num_workers}")
+    print(f"Learning rate (main): {args.lr}")
+    print(f"Learning rate (indexer): {args.indexer_lr}")
+    print(f"Warmup epochs: {args.warmup_epochs}")
+    print(f"Use indexer loss: {args.use_indexer_loss}")
+    print(f"Indexer weight: {args.indexer_weight}")
     print(f"Checkpoint dir: {args.checkpoint_dir}")
-    print(f"Resume from: {args.resume if args.resume else 'None'}")
-    print(f"Random seed: {args.seed}")
     print("=" * 80)
 
-    # Start training
     try:
         train(args)
     except KeyboardInterrupt:

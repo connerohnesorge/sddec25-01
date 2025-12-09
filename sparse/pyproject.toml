@@ -1,5 +1,5 @@
 [project]
-name = "src"
+name = "sparse"
 version = "0.1.0"
 description = "sddec25-01"
 readme = "README.md"
