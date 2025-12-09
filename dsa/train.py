@@ -27,8 +27,37 @@ from torchvision import transforms
 from PIL import Image
 from tqdm import tqdm
 from datasets import load_dataset
+import mlflow
 
 from model import DSASegmentationModel, CombinedLoss, create_dsa_tiny, create_dsa_small, create_dsa_base
+
+# Required MLflow environment variables
+MLFLOW_ENV_VARS = [
+    "DATABRICKS_TOKEN",
+    "DATABRICKS_HOST",
+    "MLFLOW_TRACKING_URI",
+    "MLFLOW_REGISTRY_URI",
+    "MLFLOW_EXPERIMENT_ID",
+]
+
+
+def setup_mlflow():
+    """Configure MLflow with Databricks credentials from environment variables.
+
+    Raises:
+        EnvironmentError: If any required environment variable is not set.
+    """
+    missing_vars = [var for var in MLFLOW_ENV_VARS if not os.environ.get(var)]
+    if missing_vars:
+        raise EnvironmentError(
+            f"Missing required MLflow environment variables: {', '.join(missing_vars)}\n"
+            f"Please set: {', '.join(MLFLOW_ENV_VARS)}"
+        )
+
+    mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
+    mlflow.set_experiment(experiment_id=os.environ["MLFLOW_EXPERIMENT_ID"])
+    print(f"MLflow configured with tracking URI: {os.environ['MLFLOW_TRACKING_URI']}")
+    print(f"MLflow experiment ID: {os.environ['MLFLOW_EXPERIMENT_ID']}")
 
 # Constants
 IMAGE_HEIGHT = 400
@@ -123,6 +152,9 @@ class IrisDataset(Dataset):
 
 def train(args):
     """Main training loop."""
+    # Setup MLflow before training
+    setup_mlflow()
+
     # Device setup
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -135,8 +167,10 @@ def train(args):
     print(f"\nLoading dataset from {HF_DATASET_REPO}...")
     hf_dataset = load_dataset(HF_DATASET_REPO)
 
-    print(f"Train samples: {len(hf_dataset['train'])}")
-    print(f"Validation samples: {len(hf_dataset['validation'])}")
+    num_train_samples = len(hf_dataset['train'])
+    num_valid_samples = len(hf_dataset['validation'])
+    print(f"Train samples: {num_train_samples}")
+    print(f"Validation samples: {num_valid_samples}")
 
     # Transforms
     transform = transforms.Compose([
@@ -186,6 +220,32 @@ def train(args):
     model = model.to(device)
     nparams = get_nparams(model)
     print(f"Model parameters: {nparams:,}")
+
+    # Start MLflow run and log parameters
+    mlflow.start_run()
+    print(f"MLflow run started: {mlflow.active_run().info.run_id}")
+
+    # Log all hyperparameters
+    mlflow.log_params({
+        "model_size": args.model_size,
+        "batch_size": args.batch_size,
+        "epochs": args.epochs,
+        "lr": args.lr,
+        "indexer_lr": args.indexer_lr,
+        "weight_decay": args.weight_decay,
+        "seed": args.seed,
+        "warmup_epochs": args.warmup_epochs,
+        "use_indexer_loss": args.use_indexer_loss,
+        "indexer_weight": args.indexer_weight,
+        "num_workers": args.num_workers,
+        "num_parameters": nparams,
+        "image_height": IMAGE_HEIGHT,
+        "image_width": IMAGE_WIDTH,
+        "dataset": HF_DATASET_REPO,
+        "num_train_samples": num_train_samples,
+        "num_valid_samples": num_valid_samples,
+        "device": str(device),
+    })
 
     # Loss, Optimizer, Scheduler
     criterion = CombinedLoss(indexer_weight=args.indexer_weight)
@@ -395,10 +455,28 @@ def train(args):
         print(f"  Surf Loss:  {train_surface_val:.4f} | {valid_surface_val:.4f}")
         print(f"  LR: {current_lr:.6f} | Alpha: {alpha:.4f}")
 
+        # Log metrics to MLflow
+        mlflow.log_metrics({
+            "train_loss": train_loss_val,
+            "train_iou": train_iou,
+            "train_ce_loss": train_ce_val,
+            "train_dice_loss": train_dice_val,
+            "train_surface_loss": train_surface_val,
+            "valid_loss": valid_loss_val,
+            "valid_iou": valid_iou,
+            "valid_ce_loss": valid_ce_val,
+            "valid_dice_loss": valid_dice_val,
+            "valid_surface_loss": valid_surface_val,
+            "learning_rate": current_lr,
+            "alpha": alpha,
+            "is_warmup_phase": 1 if is_warmup else 0,
+        }, step=epoch)
+
         # Save best model
         if valid_iou > best_iou:
             best_iou = valid_iou
 
+            best_model_path = f"{args.checkpoint_dir}/best_model.pth"
             torch.save(
                 {
                     "epoch": epoch,
@@ -408,10 +486,14 @@ def train(args):
                     "valid_iou": valid_iou,
                     "valid_loss": valid_loss_val,
                 },
-                f"{args.checkpoint_dir}/best_model.pth",
+                best_model_path,
             )
 
             print(f"  >> Saved best model with IoU={best_iou:.4f}")
+
+            # Log best model to MLflow
+            mlflow.log_metric("best_iou", best_iou, step=epoch)
+            mlflow.log_artifact(best_model_path, artifact_path="checkpoints")
 
         # Periodic checkpoints
         if (epoch + 1) % 5 == 0:
@@ -433,6 +515,11 @@ def train(args):
     print("=" * 80)
     print(f"Best validation IoU: {best_iou:.4f}")
     print(f"\nCheckpoint saved to: {args.checkpoint_dir}/best_model.pth")
+
+    # End MLflow run on successful completion
+    mlflow.log_metric("final_best_iou", best_iou)
+    mlflow.end_run()
+    print("MLflow run completed successfully.")
 
 
 def main():
@@ -554,8 +641,16 @@ def main():
         train(args)
     except KeyboardInterrupt:
         print("\n\nTraining interrupted by user!")
+        # End MLflow run on interrupt
+        if mlflow.active_run():
+            mlflow.end_run(status="KILLED")
+            print("MLflow run ended with status: KILLED")
     except Exception as e:
         print(f"\n\nError during training: {e}")
+        # End MLflow run on error
+        if mlflow.active_run():
+            mlflow.end_run(status="FAILED")
+            print("MLflow run ended with status: FAILED")
         raise
 
 
