@@ -1,9 +1,13 @@
 % Conclusion section for VisionAssist poster
 % Impact, achievements, and future work
 
-\textbf{Key Achievement:}
+\textbf{Key Contributions:}
 
-\textbf{5× throughput improvement} through pipelined DPU scheduling—proves intelligent resource allocation outperforms hardware upgrades.
+\begin{itemize}
+  \item Established \textbf{performance baseline} (534.65 ms latency, 98.8\% IoU)
+  \item Demonstrated \textbf{split-model trade-offs} (9.2$\times$ slower due to coordination overhead)
+  \item Designed \textbf{pipelined scheduling architecture} targeting 60 FPS
+\end{itemize}
 
 \vspace{1em}
 
@@ -21,9 +25,9 @@
 \textbf{Next Steps:}
 
 \begin{itemize}
+  \item \textbf{Implement pipelined execution} to reach 60 FPS target
+  \item \textbf{Optimize DPU scheduling} for multi-algorithm coordination
   \item \textbf{IRB-approved user studies} with wheelchair users
-  \item \textbf{Medical device certification} pathway
-  \item \textbf{Integration with caregiver alert systems}
   \item \textbf{Refinement:} Target 99.8\% IoU accuracy
 \end{itemize}
 

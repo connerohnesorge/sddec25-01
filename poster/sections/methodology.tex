@@ -23,16 +23,16 @@ Encoder-decoder with skip connections for fine-grained pupil detection. Model co
 
 \vspace{1em}
 
-\textbf{Key Innovation: 5× Throughput via Pipelined Scheduling}
+\textbf{Key Innovation: Pipelined DPU Scheduling}
 
 Efficient DPU resource sharing across multiple algorithms (segmentation, blink detection, tracking) with fair allocation—no starvation.
 
 \vspace{1em}
 
-\textbf{Target Performance:}
+\textbf{Current Baseline $\rightarrow$ Target:}
 
 \begin{itemize}
-  \item \textbf{Throughput:} 60 FPS (4 frames in <33.2ms)
+  \item \textbf{Throughput:} 1.87 FPS $\rightarrow$ 60 FPS target
   \item \textbf{Accuracy:} 98.8\% IoU (target: 99.8\%)
   \item \textbf{Privacy:} 100\% on-device processing
 \end{itemize}
