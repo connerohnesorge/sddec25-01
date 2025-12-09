@@ -79,6 +79,80 @@ Single model significantly outperforms the split architecture.
 	      model: 0.20 FPS
 \end{itemize}
 
+\subsection{Vitis Compiler Quantization Scale Analysis}\label{subsec:quantization-scale-analysis}
+
+The Vitis AI compiler output revealed quantization scale mismatches between
+split segments that required manual correction. These scale factors, extracted
+from the compiler's requantization operations, demonstrate the architectural
+challenges of naive model division and provide concrete evidence of compiler
+limitations when handling segmented neural network architectures.
+
+\subsubsection{Observed Requantization Scale Factors}
+
+The compiler inserted requantization operations between segments with the
+following scale relationships:
+
+\begin{itemize}
+	\item \textbf{Segment 1 $\rightarrow$ Segment 2:}
+	      \begin{itemize}
+	      	\item Output scale: 0.25
+	      	\item Input scale: 16.00
+	      	\item Scale ratio: $16.00 / 0.25 = 64\times$
+	      	\item Tensor elements: 2,048,000
+	      \end{itemize}
+	\item \textbf{Segment 1 $\rightarrow$ Segment 3 (input 0):}
+	      \begin{itemize}
+	      	\item Output scale: 1.00
+	      	\item Input scale: 32.00
+	      	\item Scale ratio: $32.00 / 1.00 = 32\times$
+	      	\item Tensor elements: 8,192,000
+	      \end{itemize}
+	\item \textbf{Segment 2 $\rightarrow$ Segment 3 (input 1):}
+	      \begin{itemize}
+	      	\item Output scale: 1.00
+	      	\item Input scale: 32.00
+	      	\item Scale ratio: $32.00 / 1.00 = 32\times$
+	      	\item Tensor elements: 8,192,000
+	      \end{itemize}
+	\item \textbf{Segment 3 $\rightarrow$ Segment 4:}
+	      \begin{itemize}
+	      	\item Output scale: 0.125
+	      	\item Input scale: 16.00
+	      	\item Scale ratio: $16.00 / 0.125 = 128\times$
+	      	\item Tensor elements: 8,192,000
+	      \end{itemize}
+\end{itemize}
+
+\subsubsection{Implications of Scale Mismatches}
+
+These quantization scale mismatches introduce several computational and
+accuracy challenges:
+
+\begin{itemize}
+	\item \textbf{Requantization Overhead:} Each inter-segment transfer
+	      requires explicit requantization operations, consuming CPU cycles
+	      and memory bandwidth. With tensor sizes ranging from 2--8 million
+	      elements, these operations represent significant computational overhead.
+	\item \textbf{Numerical Precision Loss:} Scale ratios of $32\times$ to
+	      $128\times$ indicate substantial dynamic range adjustments between
+	      segments, potentially introducing quantization error accumulation
+	      across the pipeline.
+	\item \textbf{Manual Correction Requirement:} The compiler's automatic
+	      scale selection proved incorrect for the last two segments
+	      (Segments 3 and 4), necessitating manual input tensor rescaling to
+	      achieve correct output values. This manual intervention undermines
+	      the automation benefits of the Vitis AI toolchain.
+	\item \textbf{Validation Complexity:} Scale mismatches were only
+	      discovered through comprehensive output validation against the
+	      unified model. Without pixel-level comparison, these errors would
+	      propagate to production deployment with degraded accuracy.
+\end{itemize}
+
+These findings support the conclusion that naive model division with the
+Vitis AI compiler introduces architectural complexity beyond the theoretical
+benefits of pipelining, motivating alternative optimization strategies focused
+on sequential execution with optimized CPU-DPU overlap.
+
 \subsection{Algorithm Analysis and Division}\label{subsec:algorithm-analysis}
 
 U-Net analysis for pipelined optimization~\cite{zhao2023parallel}:
