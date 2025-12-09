@@ -32,6 +32,40 @@ into wheelchairs creates an intelligent system that detects early warning
 signs and autonomously repositions the user before critical incidents occur,
 using established U-Net architectures for biomedical segmentation~\cite{ronneberger2015}.
 
+\section{Clarification of Original Project Scope}\label{sec:original-scope}
+
+The following is the exact project description provided by the client,
+JR Spidell, to Iowa State University in the approved senior design
+project list. This description was submitted by the client and has not
+been edited or construed by our team:
+
+\begin{quote}
+  \textit{``This project will break up an existing U-Net model into code
+    segments that can then be pipelined. The result will be slightly
+    higher latency but also higher throughput of the algorithm.''}
+\end{quote}
+
+\textbf{Technical Clarification:} The original description suggests that
+pipelining would enable multiple simultaneous inferences through the
+Deep Processing Unit (DPU), which is technically inaccurate for the AMD
+Kria KV260 platform. The DPU architecture fundamentally constrains
+execution to one inference at a time---it cannot process multiple neural
+network inferences simultaneously.
+
+Our actual implementation leverages pipelined CPU processing stages
+(preprocessing and postprocessing) that operate concurrently with
+sequential DPU execution. This approach achieves higher throughput
+through overlapped CPU and DPU operations rather than parallel DPU
+inferences. The architecture maintains a single-threaded DPU execution
+path with multi-threaded CPU stages, enabling 60 FPS performance while
+respecting the hardware's sequential processing constraint.
+
+This clarification is necessary to establish accurate expectations and
+demonstrate our team's understanding of the platform's technical
+limitations. The confusion in the original description does not
+reflect the team's knowledge or capabilities but rather stems from the
+initial project proposal submitted to the university.
+
 \section{Intended Users}\label{sec:intended-users}
 
 The system serves three user groups: (1) wheelchair users with conditions
