@@ -1030,13 +1030,37 @@ def create_nsa_pupil_seg(
     Create NSA Pupil Segmentation model with predefined configurations.
 
     Args:
-        size: Model size ('tiny', 'small', 'medium')
+        size: Model size ('pico', 'nano', 'tiny', 'small', 'medium')
         in_channels: Number of input channels
         num_classes: Number of output classes
     Returns:
         Configured NSAPupilSeg model
     """
     configs = {
+        'pico': {
+            'embed_dims': (4, 4, 4),
+            'depths': (1, 1, 1),
+            'num_heads': (1, 1, 1),
+            'mlp_ratios': (1.0, 1.0, 1.0),
+            'compress_block_sizes': (4, 4, 4),
+            'compress_strides': (4, 4, 4),
+            'select_block_sizes': (4, 4, 4),
+            'num_selects': (1, 1, 1),
+            'window_sizes': (3, 3, 3),
+            'decoder_dim': 4,
+        },
+        'nano': {
+            'embed_dims': (4, 8, 12),
+            'depths': (1, 1, 1),
+            'num_heads': (1, 1, 1),
+            'mlp_ratios': (1.0, 1.0, 1.0),
+            'compress_block_sizes': (4, 4, 4),
+            'compress_strides': (4, 4, 4),
+            'select_block_sizes': (4, 4, 4),
+            'num_selects': (1, 1, 1),
+            'window_sizes': (3, 3, 3),
+            'decoder_dim': 4,
+        },
         'tiny': {
             'embed_dims': (8, 12, 16),
             'depths': (1, 1, 1),
@@ -1096,7 +1120,7 @@ if __name__ == '__main__':
     print("=" * 60)
 
     # Create models of different sizes
-    for size in ['tiny', 'small', 'medium']:
+    for size in ['pico', 'nano', 'tiny', 'small', 'medium']:
         model = create_nsa_pupil_seg(size=size)
 
         # Count parameters

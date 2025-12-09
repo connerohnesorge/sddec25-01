@@ -20,7 +20,7 @@ import mediapipe as mp
 import numpy as np
 import torch
 
-from model import DSASegmentationModel, create_dsa_tiny, create_dsa_small, create_dsa_base
+from model import DSASegmentationModel, create_dsa_pico, create_dsa_nano, create_dsa_tiny, create_dsa_small, create_dsa_base
 
 
 class VisionAssistDSADemo:
@@ -146,7 +146,11 @@ class VisionAssistDSADemo:
             print(f"Using device: {self.device}")
 
         # Create model architecture
-        if self.model_size == "tiny":
+        if self.model_size == "pico":
+            self.model = create_dsa_pico(in_channels=1, num_classes=2)
+        elif self.model_size == "nano":
+            self.model = create_dsa_nano(in_channels=1, num_classes=2)
+        elif self.model_size == "tiny":
             self.model = create_dsa_tiny(in_channels=1, num_classes=2)
         elif self.model_size == "small":
             self.model = create_dsa_small(in_channels=1, num_classes=2)
@@ -498,7 +502,7 @@ def main():
         "--model-size",
         type=str,
         default="small",
-        choices=["tiny", "small", "base"],
+        choices=["pico", "nano", "tiny", "small", "base"],
         help="Model size variant",
     )
     parser.add_argument(

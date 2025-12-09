@@ -29,7 +29,7 @@ from tqdm import tqdm
 from datasets import load_dataset
 import mlflow
 
-from model import DSASegmentationModel, CombinedLoss, create_dsa_tiny, create_dsa_small, create_dsa_base
+from model import DSASegmentationModel, CombinedLoss, create_dsa_pico, create_dsa_nano, create_dsa_tiny, create_dsa_small, create_dsa_base
 
 # Required MLflow environment variables
 MLFLOW_ENV_VARS = [
@@ -200,7 +200,11 @@ def train(args):
     # Initialize Model
     print(f"\nInitializing DSA model (variant: {args.model_size})...")
 
-    if args.model_size == "tiny":
+    if args.model_size == "pico":
+        model = create_dsa_pico(in_channels=1, num_classes=2)
+    elif args.model_size == "nano":
+        model = create_dsa_nano(in_channels=1, num_classes=2)
+    elif args.model_size == "tiny":
         model = create_dsa_tiny(in_channels=1, num_classes=2)
     elif args.model_size == "small":
         model = create_dsa_small(in_channels=1, num_classes=2)
@@ -504,7 +508,7 @@ def train(args):
         if valid_iou > best_iou:
             best_iou = valid_iou
 
-            best_model_path = f"{args.checkpoint_dir}/best_model.pth"
+            best_model_path = f"{args.checkpoint_dir}/best_model_{args.model_size}.pth"
             torch.save(
                 {
                     "epoch": epoch,
@@ -534,7 +538,7 @@ def train(args):
                     "valid_iou": valid_iou,
                     "valid_loss": valid_loss_val,
                 },
-                f"{args.checkpoint_dir}/checkpoint_epoch_{epoch+1}.pth",
+                f"{args.checkpoint_dir}/checkpoint_{args.model_size}_epoch_{epoch+1}.pth",
             )
             print(f"  >> Saved checkpoint at epoch {epoch+1}")
 
@@ -542,7 +546,7 @@ def train(args):
     print("Training Complete!")
     print("=" * 80)
     print(f"Best validation IoU: {best_iou:.4f}")
-    print(f"\nCheckpoint saved to: {args.checkpoint_dir}/best_model.pth")
+    print(f"\nCheckpoint saved to: {args.checkpoint_dir}/best_model_{args.model_size}.pth")
 
     # End MLflow run on successful completion
     mlflow.log_metric("final_best_iou", best_iou)
@@ -562,7 +566,7 @@ def main():
         "--model-size",
         type=str,
         default="small",
-        choices=["tiny", "small", "base"],
+        choices=["pico", "nano", "tiny", "small", "base"],
         help="Model size variant",
     )
 

@@ -498,6 +498,32 @@ class CombinedLoss(nn.Module):
 
 
 # Convenience function to create model variants
+def create_dsa_pico(in_channels: int = 1, num_classes: int = 2) -> DSASegmentationModel:
+    """Create pico DSA model (~3-4k params)."""
+    return DSASegmentationModel(
+        in_channels=in_channels,
+        num_classes=num_classes,
+        embed_dims=(4, 8, 12),
+        depths=(1, 1, 1),
+        num_heads=(1, 1, 1),
+        top_k=(16, 8, 4),
+        decoder_dim=6,
+    )
+
+
+def create_dsa_nano(in_channels: int = 1, num_classes: int = 2) -> DSASegmentationModel:
+    """Create nano DSA model (~5-7k params)."""
+    return DSASegmentationModel(
+        in_channels=in_channels,
+        num_classes=num_classes,
+        embed_dims=(6, 12, 18),
+        depths=(1, 1, 1),
+        num_heads=(1, 1, 2),
+        top_k=(24, 12, 6),
+        decoder_dim=9,
+    )
+
+
 def create_dsa_tiny(in_channels: int = 1, num_classes: int = 2) -> DSASegmentationModel:
     """Create tiny DSA model (~10k params)."""
     return DSASegmentationModel(

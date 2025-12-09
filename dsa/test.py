@@ -155,6 +155,8 @@ def test_full_model():
     from model import (
         DSASegmentationModel,
         CombinedLoss,
+        create_dsa_pico,
+        create_dsa_nano,
         create_dsa_tiny,
         create_dsa_small,
         create_dsa_base,
@@ -175,7 +177,7 @@ def test_full_model():
     # Test model variants
     print("\n1. Testing model variants...")
 
-    for name, create_fn in [("tiny", create_dsa_tiny), ("small", create_dsa_small), ("base", create_dsa_base)]:
+    for name, create_fn in [("pico", create_dsa_pico), ("nano", create_dsa_nano), ("tiny", create_dsa_tiny), ("small", create_dsa_small), ("base", create_dsa_base)]:
         model = create_fn(in_channels=in_channels, num_classes=num_classes)
         nparams = sum(p.numel() for p in model.parameters())
         print(f"   DSA-{name}: {nparams:,} parameters")
@@ -237,7 +239,7 @@ def benchmark_inference():
     print("Benchmarking Inference Speed")
     print("=" * 60)
 
-    from model import create_dsa_tiny, create_dsa_small, create_dsa_base
+    from model import create_dsa_pico, create_dsa_nano, create_dsa_tiny, create_dsa_small, create_dsa_base
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Device: {device}")
@@ -249,7 +251,7 @@ def benchmark_inference():
     warmup_runs = 10
     benchmark_runs = 50
 
-    for name, create_fn in [("tiny", create_dsa_tiny), ("small", create_dsa_small), ("base", create_dsa_base)]:
+    for name, create_fn in [("pico", create_dsa_pico), ("nano", create_dsa_nano), ("tiny", create_dsa_tiny), ("small", create_dsa_small), ("base", create_dsa_base)]:
         model = create_fn().to(device)
         model.eval()
 

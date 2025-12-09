@@ -519,7 +519,7 @@ def train(args):
                     "valid_loss": valid_loss_val,
                     "model_size": args.model_size,
                 },
-                f"{args.checkpoint_dir}/best_nsa_model.pth",
+                f"{args.checkpoint_dir}/best_nsa_{args.model_size}_model.pth",
             )
 
             print(f"  >> Saved best model with IoU={best_iou:.4f}")
@@ -535,7 +535,7 @@ def train(args):
                     "valid_loss": valid_loss_val,
                     "model_size": args.model_size,
                 },
-                f"{args.checkpoint_dir}/nsa_checkpoint_epoch_{epoch+1}.pth",
+                f"{args.checkpoint_dir}/nsa_{args.model_size}_checkpoint_epoch_{epoch+1}.pth",
             )
             print(f"  >> Saved checkpoint at epoch {epoch+1}")
 
@@ -547,7 +547,7 @@ def train(args):
     print("NSA Training Complete!")
     print("=" * 80)
     print(f"Best validation IoU: {best_iou:.4f}")
-    print(f"\nCheckpoint saved to: {args.checkpoint_dir}/best_nsa_model.pth")
+    print(f"\nCheckpoint saved to: {args.checkpoint_dir}/best_nsa_{args.model_size}_model.pth")
 
     # ==========================================================================
     # MLflow Finalization
@@ -578,7 +578,7 @@ def main():
         "--model-size",
         type=str,
         default="small",
-        choices=["tiny", "small", "medium"],
+        choices=["pico", "nano", "tiny", "small", "medium"],
         help="Model size configuration",
     )
 
