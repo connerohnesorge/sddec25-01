@@ -582,6 +582,8 @@ single model is 9.20x faster than the split architecture.
 showed smaller differences. Upon validating outputs, we discovered the
 Vitis AI model compiler incorrectly scaled the last two split segments
 by a factor of two, requiring input tensor rescaling for correct output.
+Detailed quantization scale analysis is provided in
+Section~\ref{subsec:quantization-scale-analysis}.
 
 Results demonstrate that naive algorithm division introduces significant
 overhead from segment coordination, inter-segment data transfer, and
