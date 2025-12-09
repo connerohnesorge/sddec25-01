@@ -1,30 +1,27 @@
 % Results section for VisionAssist poster
 % Performance metrics and achievements
 
-\textbf{Achieved Performance:}
+\vspace{1em}
+
+\textbf{Model Predictions:}
 
 \begin{center}
-\begin{tabular}{lr}
-\toprule
-\textbf{Metric} & \textbf{Result} \\
-\midrule
-Throughput & 60 FPS \\
-Latency (4 frames) & <33.2 ms \\
-Segmentation Accuracy (IoU) & 98.8\% \\
-Continuous Operation & 24+ hours \\
-\bottomrule
-\end{tabular}
+	\includegraphics[width=0.95\linewidth]{../assets/predictions_epoch_15.png}
 \end{center}
+
+\vspace{0.5em}
+
+Visual results showing accurate pupil center detection across varying eye positions and lighting conditions. The model consistently predicts pupil locations (red dots) matching ground truth annotations.
 
 \vspace{1em}
 
 \textbf{What This Means:}
 
 \begin{itemize}
-  \item \textbf{60 FPS:} Enables smooth, responsive eye movement tracking
-  \item \textbf{98.8\% IoU:} Accurate pupil detection across lighting conditions
-  \item \textbf{24+ hours:} Reliable for all-day wheelchair use
-  \item \textbf{On-device:} No network dependency, preserves privacy
+	\item \textbf{60 FPS:} Enables smooth, responsive eye movement tracking
+	\item \textbf{98.8\% IoU:} Accurate pupil detection across lighting conditions
+	\item \textbf{24+ hours:} Reliable for all-day wheelchair use
+	\item \textbf{On-device:} No network dependency, preserves privacy
 \end{itemize}
 
 \vspace{1em}
@@ -32,8 +29,8 @@ Continuous Operation & 24+ hours \\
 \textbf{System Validation:}
 
 \begin{itemize}
-  \item \textbf{Lighting robustness:} >98\% accuracy in varied conditions
-  \item \textbf{Scheduling fairness:} Zero missed deadlines under load
-  \item \textbf{IEEE compliance:} Testing per IEEE 3129--2023 \& IEEE 2802--2022
+	\item \textbf{Lighting robustness:} >98\% accuracy in varied conditions
+	\item \textbf{Scheduling fairness:} Zero missed deadlines under load
+	\item \textbf{IEEE compliance:} Testing per IEEE 3129--2023 \& IEEE 2802--2022
 \end{itemize}
 
