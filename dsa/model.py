@@ -499,7 +499,20 @@ class CombinedLoss(nn.Module):
 
 # Convenience function to create model variants
 def create_dsa_tiny(in_channels: int = 1, num_classes: int = 2) -> DSASegmentationModel:
-    """Create tiny DSA model (~20k params)."""
+    """Create tiny DSA model (~10k params)."""
+    return DSASegmentationModel(
+        in_channels=in_channels,
+        num_classes=num_classes,
+        embed_dims=(8, 16, 24),
+        depths=(1, 1, 1),
+        num_heads=(1, 2, 2),
+        top_k=(32, 16, 8),
+        decoder_dim=12,
+    )
+
+
+def create_dsa_small(in_channels: int = 1, num_classes: int = 2) -> DSASegmentationModel:
+    """Create small DSA model (~20k params)."""
     return DSASegmentationModel(
         in_channels=in_channels,
         num_classes=num_classes,
@@ -511,8 +524,8 @@ def create_dsa_tiny(in_channels: int = 1, num_classes: int = 2) -> DSASegmentati
     )
 
 
-def create_dsa_small(in_channels: int = 1, num_classes: int = 2) -> DSASegmentationModel:
-    """Create small DSA model (~40k params)."""
+def create_dsa_base(in_channels: int = 1, num_classes: int = 2) -> DSASegmentationModel:
+    """Create base DSA model (~40k params)."""
     return DSASegmentationModel(
         in_channels=in_channels,
         num_classes=num_classes,
@@ -521,17 +534,4 @@ def create_dsa_small(in_channels: int = 1, num_classes: int = 2) -> DSASegmentat
         num_heads=(2, 2, 4),
         top_k=(64, 32, 16),
         decoder_dim=24,
-    )
-
-
-def create_dsa_base(in_channels: int = 1, num_classes: int = 2) -> DSASegmentationModel:
-    """Create base DSA model (~80k params)."""
-    return DSASegmentationModel(
-        in_channels=in_channels,
-        num_classes=num_classes,
-        embed_dims=(24, 48, 72),
-        depths=(1, 2, 1),
-        num_heads=(2, 4, 6),
-        top_k=(96, 48, 24),
-        decoder_dim=36,
     )

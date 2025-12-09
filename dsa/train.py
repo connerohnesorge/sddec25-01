@@ -221,6 +221,13 @@ def train(args):
     nparams = get_nparams(model)
     print(f"Model parameters: {nparams:,}")
 
+    # Enable gradient checkpointing if requested
+    if args.gradient_checkpointing:
+        for stage in [model.encoder.stage1, model.encoder.stage2, model.encoder.stage3]:
+            for block in stage.blocks:
+                block.use_checkpoint = True
+        print("Gradient checkpointing enabled")
+
     # Start MLflow run and log parameters
     mlflow.start_run()
     print(f"MLflow run started: {mlflow.active_run().info.run_id}")
@@ -245,6 +252,8 @@ def train(args):
         "num_train_samples": num_train_samples,
         "num_valid_samples": num_valid_samples,
         "device": str(device),
+        "gradient_checkpointing": args.gradient_checkpointing,
+        "accumulation_steps": args.accumulation_steps,
     })
 
     # Loss, Optimizer, Scheduler
@@ -334,13 +343,13 @@ def train(args):
 
         pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs} [Train]")
 
-        for images, labels, spatial_weights, dist_maps in pbar:
+        optimizer.zero_grad()
+
+        for batch_idx, (images, labels, spatial_weights, dist_maps) in enumerate(pbar):
             images = images.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True)
             spatial_weights = spatial_weights.to(device, non_blocking=True)
             dist_maps = dist_maps.to(device, non_blocking=True)
-
-            optimizer.zero_grad()
 
             with torch.amp.autocast("cuda", enabled=use_amp):
                 outputs = model(images)
@@ -354,15 +363,25 @@ def train(args):
                     outputs, labels, spatial_weights, dist_maps, alpha, indexer_loss
                 )
 
+                # Scale loss for gradient accumulation
+                loss = loss / args.accumulation_steps
+
             if use_amp:
                 scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
+
+                # Only step optimizer after accumulation
+                if (batch_idx + 1) % args.accumulation_steps == 0:
+                    scaler.step(optimizer)
+                    scaler.update()
+                    optimizer.zero_grad()
             else:
                 loss.backward()
-                optimizer.step()
+                if (batch_idx + 1) % args.accumulation_steps == 0:
+                    optimizer.step()
+                    optimizer.zero_grad()
 
-            train_loss += loss.detach()
+            # Rescale loss for logging
+            train_loss += loss.detach() * args.accumulation_steps
             train_ce_loss += ce_loss.detach()
             train_dice_loss += dice_loss.detach()
             train_surface_loss += surface_loss.detach()
@@ -373,6 +392,15 @@ def train(args):
             train_union += uni
 
             pbar.set_postfix({"alpha": f"{alpha:.3f}"})
+
+        # Handle any remaining gradients if batch count not divisible by accumulation_steps
+        if (len(train_loader)) % args.accumulation_steps != 0:
+            if use_amp:
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                optimizer.step()
+            optimizer.zero_grad()
 
         n_train_batches = len(train_loader)
 
@@ -542,7 +570,7 @@ def main():
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=64,
+        default=2,
         help="Batch size for training and validation",
     )
     parser.add_argument(
@@ -618,6 +646,20 @@ def main():
         help="Path to checkpoint to resume training from",
     )
 
+    # Memory efficiency
+    parser.add_argument(
+        "--gradient-checkpointing",
+        action="store_true",
+        default=False,
+        help="Enable gradient checkpointing to reduce memory (trades compute for memory)",
+    )
+    parser.add_argument(
+        "--accumulation-steps",
+        type=int,
+        default=1,
+        help="Gradient accumulation steps (effective batch = batch_size * accumulation_steps)",
+    )
+
     args = parser.parse_args()
 
     # Print configuration
@@ -635,6 +677,8 @@ def main():
     print(f"Use indexer loss: {args.use_indexer_loss}")
     print(f"Indexer weight: {args.indexer_weight}")
     print(f"Checkpoint dir: {args.checkpoint_dir}")
+    print(f"Gradient checkpointing: {args.gradient_checkpointing}")
+    print(f"Accumulation steps: {args.accumulation_steps}")
     print("=" * 80)
 
     try:

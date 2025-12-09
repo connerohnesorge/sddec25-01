@@ -27,6 +27,7 @@ For pupil segmentation:
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.checkpoint
 from typing import Optional, Tuple
 
 try:
@@ -68,8 +69,8 @@ class DeepSeekSparseAttention(nn.Module):
         key_dim: int = 16,
         value_dim: int = None,
         top_k: int = 64,
-        indexer_heads: int = 2,
-        indexer_dim: int = 8,
+        indexer_heads: int = 1,
+        indexer_dim: int = 4,
         dropout: float = 0.0,
         use_spatial_indexer: bool = True,
     ):
@@ -306,6 +307,7 @@ class DSABlock(nn.Module):
         top_k: Number of tokens for sparse attention
         mlp_ratio: MLP hidden dimension ratio
         dropout: Dropout probability
+        use_checkpoint: Whether to use gradient checkpointing
     """
 
     def __init__(
@@ -315,8 +317,10 @@ class DSABlock(nn.Module):
         top_k: int = 64,
         mlp_ratio: float = 2.0,
         dropout: float = 0.0,
+        use_checkpoint: bool = False,
     ):
         super().__init__()
+        self.use_checkpoint = use_checkpoint
 
         # Layer norms
         self.norm1 = nn.LayerNorm(dim)
@@ -346,23 +350,13 @@ class DSABlock(nn.Module):
             nn.Dropout(dropout),
         )
 
-    def forward(
+    def _forward_impl(
         self,
         x: torch.Tensor,
         height: int,
         width: int,
     ) -> torch.Tensor:
-        """
-        Forward pass through DSA block.
-
-        Args:
-            x: Input tensor (B, C, H, W)
-            height: Feature map height
-            width: Feature map width
-
-        Returns:
-            Output tensor (B, C, H, W)
-        """
+        """Internal forward implementation."""
         B, C, H, W = x.shape
 
         # Local features via depthwise conv
@@ -384,6 +378,19 @@ class DSABlock(nn.Module):
 
         return x
 
+    def forward(
+        self,
+        x: torch.Tensor,
+        height: int,
+        width: int,
+    ) -> torch.Tensor:
+        """Forward pass with optional gradient checkpointing."""
+        if self.use_checkpoint and self.training:
+            return torch.utils.checkpoint.checkpoint(
+                self._forward_impl, x, height, width, use_reentrant=False
+            )
+        return self._forward_impl(x, height, width)
+
 
 class DSAStage(nn.Module):
     """
@@ -396,6 +403,7 @@ class DSAStage(nn.Module):
         num_heads: Attention heads per block
         top_k: Tokens per sparse attention
         downsample: Whether to downsample spatially
+        use_checkpoint: Whether to use gradient checkpointing
     """
 
     def __init__(
@@ -406,8 +414,10 @@ class DSAStage(nn.Module):
         num_heads: int = 4,
         top_k: int = 64,
         downsample: bool = True,
+        use_checkpoint: bool = False,
     ):
         super().__init__()
+        self.use_checkpoint = use_checkpoint
 
         # Optional downsampling
         self.downsample = None
@@ -424,12 +434,13 @@ class DSAStage(nn.Module):
                 nn.GELU(),
             )
 
-        # DSA blocks
+        # DSA blocks - pass use_checkpoint
         self.blocks = nn.ModuleList([
             DSABlock(
                 dim=out_dim,
                 num_heads=num_heads,
                 top_k=top_k,
+                use_checkpoint=use_checkpoint,
             )
             for _ in range(depth)
         ])

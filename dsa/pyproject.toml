@@ -1,5 +1,5 @@
 [project]
-name = "src"
+name = "dsa"
 version = "0.1.0"
 description = "sddec25-01"
 readme = "README.md"
@@ -26,6 +26,7 @@ dependencies = [
     "datasets>=4.4.1",
     "pyarrow>=14.0.0",
     "torchview>=0.2.7",
+    "opencv-python>=4.11.0.86",
 ]
 
 [project.scripts]

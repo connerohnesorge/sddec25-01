@@ -308,6 +308,7 @@ class SpatialLightningIndexer(LightningIndexer):
         Create a local attention mask for spatial bias.
 
         Each query position gets higher scores for nearby key positions.
+        Uses vectorized operations for efficiency.
 
         Args:
             height: Feature map height
@@ -318,22 +319,28 @@ class SpatialLightningIndexer(LightningIndexer):
             Local bias tensor (1, H*W, H*W)
         """
         N = height * width
-        bias = torch.zeros(1, N, N, device=device)
-
         half_win = self.local_window // 2
 
-        for i in range(height):
-            for j in range(width):
-                q_idx = i * width + j
+        # Create position grids
+        y_pos = torch.arange(height, device=device)
+        x_pos = torch.arange(width, device=device)
+        qy, qx = torch.meshgrid(y_pos, x_pos, indexing='ij')
+        qy, qx = qy.reshape(-1), qx.reshape(-1)  # (N,)
 
-                for di in range(-half_win, half_win + 1):
-                    for dj in range(-half_win, half_win + 1):
-                        ni, nj = i + di, j + dj
-                        if 0 <= ni < height and 0 <= nj < width:
-                            k_idx = ni * width + nj
-                            local_i = di + half_win
-                            local_j = dj + half_win
-                            bias[0, q_idx, k_idx] = self.local_bias[0, 0, local_i, local_j]
+        # Compute pairwise distances
+        dy = qy.unsqueeze(1) - qy.unsqueeze(0)  # (N, N)
+        dx = qx.unsqueeze(1) - qx.unsqueeze(0)  # (N, N)
+
+        # Create mask for positions within local window
+        in_window = (dy.abs() <= half_win) & (dx.abs() <= half_win)
+
+        # Map to local bias indices (shift to positive range)
+        local_y = (dy + half_win).clamp(0, self.local_window - 1)
+        local_x = (dx + half_win).clamp(0, self.local_window - 1)
+
+        # Gather bias values only for positions within window
+        bias = torch.zeros(1, N, N, device=device)
+        bias[0, in_window] = self.local_bias[0, 0, local_y[in_window].long(), local_x[in_window].long()]
 
         return bias
 
