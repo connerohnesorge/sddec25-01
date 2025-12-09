@@ -589,22 +589,25 @@ The combination of these elements, particularly maintaining mathematical consist
 Through the course of this project, we have identified several critical observations regarding the pupil segmentation task that were not fully leveraged or considered in the initial approach:
 
 1. **High Precision Localization Requirements**
-   - Pupil segmentation is a task demanding highly precise pixel localization
+   - Pupil segmentation is a task demanding highly precise pixel localization, particularly for boundary delineation
    - Unlike general object detection, eye tracking for medical assistive technology requires sub-pixel accuracy to reliably detect subtle eye movements that may indicate medical distress
-   - Current U-Net architecture does not explicitly encode this precision requirement
+   - Current U-Net architecture does not explicitly encode this precision requirement, which could be addressed through boundary-aware loss functions (Kervadec et al., 2019)
+   - Recent work in ellipse-based segmentation (Fuhl et al., 2024; Li & Demiris, 2021) demonstrates that incorporating geometric shape priors can significantly improve boundary precision
 
 2. **Spatial Constraint of Pupil Location**
-   - The pupil is exclusively located within the boundaries of the eye region
-   - This strong spatial prior is not leveraged by the standard U-Net model architecture
+   - The pupil is exclusively located within the boundaries of the eye region, representing a strong anatomical constraint
+   - This spatial prior is not leveraged by the standard U-Net model architecture, which treats all image regions equally
    - Incorporating eye boundary detection as a preprocessing constraint could significantly improve segmentation accuracy and reduce false positives
+   - Ellipse-based approaches explicitly model this constraint, achieving robust gaze tracking by enforcing geometric shape priors (Fuhl et al., 2024)
 
 3. **Model Architecture Limitations**
    - The above spatial and precision constraints are not explicitly encoded in the U-Net model architecture
    - The model must learn these constraints implicitly from data, which may be inefficient and potentially less reliable
-   - Future architectures could benefit from attention mechanisms or region-of-interest processing that explicitly enforce these domain-specific constraints
+   - Future architectures could benefit from attention mechanisms (Cai et al., 2022; Tang et al., 2025) or region-of-interest processing that explicitly enforce these domain-specific constraints
+   - Sparse attention mechanisms could focus computational resources on the eye region while reducing overhead for irrelevant background areas
 
 4. **Dataset Domain Gap**
-   - OpenEDS dataset originates exclusively from VR headset environments with controlled conditions
+   - OpenEDS dataset (Garbin et al., 2019) originates exclusively from VR headset environments with controlled conditions at 200 Hz capture rate
    - The dataset lacks real-world deformations, lighting variations, and optical artifacts that would be encountered in actual assistive wheelchair deployments
    - This domain gap represents a significant limitation in achieving the client's goal of robust real-world performance
    - The VR domain does not include conditions such as:
@@ -612,6 +615,7 @@ Through the course of this project, we have identified several critical observat
      - Eyewear interactions (prescription glasses, reflective coatings)
      - Head movement and vibration from wheelchair mobility
      - Wide range of eye anatomies and medical conditions affecting eye appearance
+   - While OpenEDS provides large-scale annotated data (12,759+ images), the controlled VR environment may not generalize well to uncontrolled medical assistive technology deployments
 
 **Implications for Design:**
 
@@ -1462,6 +1466,18 @@ AMD. (2023). "Vitis AI User Guide." UG1414 (v2.5). https://docs.amd.com/r/en-US/
 Garcia-Garcia, A., Orts-Escolano, S., Oprea, S., Villena-Martinez, V., & Garcia-Rodriguez, J. (2017). "A Review on Deep Learning Techniques Applied to Semantic Segmentation." ArXiv:1704.06857. https://arxiv.org/abs/1704.06857
 
 Beauchamp, T. L. (2007). "The 'Four Principles' Approach to Health Care Ethics." Principles of Health Care Ethics, 2nd Edition, John Wiley & Sons, 3-10. https://doi.org/10.1002/9780470510544
+
+Garbin, S. J., Shen, Y., Schuetz, I., Cavin, R., Hughes, G., & Talathi, S. S. (2019). "OpenEDS: Open Eye Dataset." Proceedings of the IEEE/CVF International Conference on Computer Vision Workshops, 1-10. https://doi.org/10.1109/ICCVW.2019.00204
+
+Kervadec, H., Bouchtiba, J., Desrosiers, C., Granger, E., Dolz, J., & Ayed, I. B. (2019). "Boundary Loss for Highly Unbalanced Segmentation." International Conference on Medical Imaging with Deep Learning (MIDL), 285-296. https://arxiv.org/abs/1812.07032
+
+Li, Z., & Demiris, Y. (2021). "CondSeg: Ellipse Estimation of Pupil and Iris via Conditioned Segmentation." 2021 IEEE International Conference on Robotics and Automation (ICRA), 2045-2051. https://doi.org/10.1109/ICRA48506.2021.9389650
+
+Fuhl, W., Bozkir, E., Brosch, T., Castner, N., Geisler, D., Santini, T., Tonsen, M., & Kasneci, E. (2024). "EllSeg: An Ellipse Segmentation Framework for Robust Gaze Tracking." ArXiv:2408.17231. https://arxiv.org/abs/2408.17231
+
+Cai, H., Li, J., Hu, M., Gan, C., & Han, S. (2022). "EfficientViT: Multi-Scale Linear Attention for High-Resolution Dense Prediction." European Conference on Computer Vision (ECCV). https://arxiv.org/abs/2205.14756
+
+Tang, Y., Wang, Y., Chen, J., Zhou, H., Li, H., Zhang, Z., & Lin, J. (2025). "Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention." ArXiv:2502.11089. https://arxiv.org/abs/2502.11089
 
 ### 8.3 Appendices
 
