@@ -333,33 +333,19 @@ def process_all_splits(dataset_path: str, output_dir: str) -> str:
 
 def upload_parquet_to_huggingface(parquet_dir: str, repo_id: str, token: str) -> None:
     print(f"Uploading parquet files to HuggingFace Hub: {repo_id}")
-    api = HfApi()
+    api = HfApi(token=token)
     try:
         api.create_repo(repo_id, repo_type="dataset", token=token, exist_ok=True)
     except Exception as e:
         print(f"Warning: Could not create repo: {e}")
-    train_dir = os.path.join(parquet_dir, "train")
-    if os.path.exists(train_dir):
-        print("Uploading train split...")
-        api.upload_folder(
-            folder_path=train_dir,
-            path_in_repo="data/train",
-            repo_id=repo_id,
-            repo_type="dataset",
-            token=token,
-        )
-        print("Train split uploaded.")
-    valid_dir = os.path.join(parquet_dir, "validation")
-    if os.path.exists(valid_dir):
-        print("Uploading validation split...")
-        api.upload_folder(
-            folder_path=valid_dir,
-            path_in_repo="data/validation",
-            repo_id=repo_id,
-            repo_type="dataset",
-            token=token,
-        )
-        print("Validation split uploaded.")
+
+    # Use upload_large_folder for reliable uploads of large datasets
+    print("Uploading dataset (using upload_large_folder for reliability)...")
+    api.upload_large_folder(
+        folder_path=parquet_dir,
+        repo_id=repo_id,
+        repo_type="dataset",
+    )
     print(
         f"Dataset uploaded successfully to: https://huggingface.co/datasets/{repo_id}"
     )
