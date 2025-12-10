@@ -260,6 +260,8 @@ def process_split_to_parquet(dataset_path: str, split: str, output_dir: str) -> 
 
     # Simplified approach: synchronous writes since we only have 2 workers anyway
     # This avoids memory accumulation from keeping all futures/tables in memory
+    shard_count = int(np.ceil(total_images / CHUNK_SIZE))
+    print(f"Writing {shard_count} shards")
     for chunk_start in range(0, total_images, CHUNK_SIZE):
         chunk_end = min(chunk_start + CHUNK_SIZE, total_images)
         chunk_files = image_files[chunk_start:chunk_end]
@@ -307,7 +309,7 @@ def process_split_to_parquet(dataset_path: str, split: str, output_dir: str) -> 
             sample_count = len(chunk_data["filename"])
             # Write synchronously to avoid memory accumulation
             pq.write_table(table, parquet_path)
-            print(f"Saved shard {shard_idx} with {sample_count} samples")
+            print(f"Saved shard {shard_idx} of {shard_count} with {sample_count} samples")
             del table
         del chunk_data
         gc.collect()
