@@ -1,19 +1,12 @@
 #!/usr/bin/env python3
 """
-NSA Pupil Segmentation Live Demo - Native Sparse Attention Webcam Application
+VisionAssist Live Demo - Dual Eye Segmentation with NSA Model
 
-This demo application performs real-time pupil segmentation on webcam input
-using the NSAPupilSeg model (Native Sparse Attention). It demonstrates eye tracking
-and pupil detection capabilities for the VisionAssist medical assistive technology project.
+This demo performs real-time semantic segmentation on BOTH eyes using webcam input.
+It uses the NSA (Native Sparse Attention) model for pupil segmentation.
 
-The application captures live video, runs inference using PyTorch,
-and visualizes the segmentation results with overlays.
-
-NSA Key Features:
-- Token Compression: Global coarse-grained context
-- Token Selection: Fine-grained focus on important regions (pupil)
-- Sliding Window: Local context for precise boundaries
-- Gated Aggregation: Learned combination of attention paths
+The application captures live video, runs inference on both left and right eyes,
+and visualizes the segmentation results with dual overlays.
 """
 
 import argparse
@@ -29,16 +22,19 @@ import torch
 from nsa import create_nsa_pupil_seg
 
 
-class NSAVisionAssistDemo:
-    """Main demo application for NSA Pupil Segmentation live webcam inference."""
+class VisionAssistDemoDD:
+    """Dual-eye demo application for VisionAssist live webcam inference with NSA model."""
 
     # MediaPipe left eye landmark indices (12 points around the eye)
     LEFT_EYE_INDICES = [362, 385, 387, 263, 373, 380, 374, 381, 382, 384, 398, 466]
 
+    # MediaPipe right eye landmark indices (12 points around the eye)
+    RIGHT_EYE_INDICES = [33, 160, 158, 133, 153, 144, 145, 163, 7, 154, 155, 246]
+
     # Target aspect ratio for eye region (width:height = 640:400 = 1.6:1)
     TARGET_ASPECT_RATIO = 640 / 400
 
-    # Preprocessing parameters (MUST match training exactly)
+    # Normalization parameters (no preprocessing - just normalize)
     NORMALIZE_MEAN = 0.5
     NORMALIZE_STD = 0.5
 
@@ -49,7 +45,7 @@ class NSAVisionAssistDemo:
     # Display settings
     CAMERA_WIDTH = 1920
     CAMERA_HEIGHT = 1080
-    MIN_EYE_REGION_SIZE = 50  # Minimum bounding box size
+    MIN_EYE_REGION_SIZE = 100  # Minimum bounding box size
     BBOX_PADDING = 0.2  # 20% padding on each side
     OVERLAY_ALPHA = 0.5
 
@@ -61,11 +57,11 @@ class NSAVisionAssistDemo:
         verbose: bool = False,
     ):
         """
-        Initialize the NSA VisionAssist demo.
+        Initialize the VisionAssist dual-eye demo with NSA model.
 
         Args:
             model_path: Path to PyTorch model checkpoint (.pt or .pth file)
-            model_size: Model size configuration ('pico', 'nano', 'tiny', 'small', 'medium')
+            model_size: NSA model size ('pico', 'nano', 'tiny', 'small', 'medium')
             camera_index: Camera device index (default 0)
             verbose: Enable comprehensive logging
         """
@@ -82,7 +78,6 @@ class NSAVisionAssistDemo:
         self._init_camera()
         self._init_model()
         self._init_face_mesh()
-        self._init_preprocessing()
 
         # State
         self.paused = False
@@ -97,36 +92,38 @@ class NSAVisionAssistDemo:
         self._gray_buffer = np.empty(
             (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
         )
-        # Normalized buffer
-        self._resized_buffer = np.empty(
-            (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
-        )
         self._normalized_buffer = np.empty(
             (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.float32
         )
         self._input_tensor = np.empty(
-            (1, 1, self.MODEL_WIDTH, self.MODEL_HEIGHT), dtype=np.float32
+            (1, 1, self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.float32
         )
 
-        # Pre-allocated buffer for inference output
-        self._mask_buffer = np.empty(
+        # Pre-allocated buffer for inference output (one per eye)
+        self._mask_buffer_left = np.empty(
             (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
         )
-        # Pre-allocated buffer for argmax output (before transpose) - int64 for np.argmax out=
+        self._mask_buffer_right = np.empty(
+            (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.uint8
+        )
+        # Pre-allocated buffer for argmax output - int64 for np.argmax out=
         self._argmax_buffer = np.empty(
-            (self.MODEL_WIDTH, self.MODEL_HEIGHT), dtype=np.int64
+            (self.MODEL_HEIGHT, self.MODEL_WIDTH), dtype=np.int64
         )
 
         # Pre-allocated buffer for eye extraction (12 landmark points)
         self._eye_points_buffer = np.empty(
-            (len(self.LEFT_EYE_INDICES), 2), dtype=np.int32
+            (max(len(self.LEFT_EYE_INDICES), len(self.RIGHT_EYE_INDICES)), 2),
+            dtype=np.int32,
         )
 
         # Pre-allocated buffers for visualization (sized lazily on first frame)
         self._frame_rgb = None
         self._overlay_buffer = None
-        self._green_overlay_cache = None
-        self._green_overlay_size = (0, 0)
+        self._green_overlay_cache_left = None
+        self._green_overlay_cache_right = None
+        self._green_overlay_size_left = (0, 0)
+        self._green_overlay_size_right = (0, 0)
         # Pre-allocated buffer for visualization mask resize (max camera resolution)
         self._mask_viz_buffer = np.empty(
             (self.CAMERA_HEIGHT, self.CAMERA_WIDTH), dtype=np.uint8
@@ -163,9 +160,9 @@ class NSAVisionAssistDemo:
             )
 
     def _init_model(self):
-        """Initialize PyTorch NSA model."""
+        """Initialize NSA PyTorch model."""
         if self.verbose:
-            print(f"Loading NSAPupilSeg model (size={self.model_size}) from {self.model_path}...")
+            print(f"Loading NSA model (size={self.model_size}) from {self.model_path}...")
 
         # Determine device (CUDA > MPS > CPU)
         if torch.cuda.is_available():
@@ -194,10 +191,6 @@ class NSAVisionAssistDemo:
         )
         if "model_state_dict" in checkpoint:
             self.model.load_state_dict(checkpoint["model_state_dict"])
-            if self.verbose:
-                best_iou = checkpoint.get("valid_iou", "N/A")
-                if isinstance(best_iou, (int, float)):
-                    print(f"Loaded checkpoint with best IoU: {best_iou:.4f}")
         else:
             self.model.load_state_dict(checkpoint)
 
@@ -208,7 +201,7 @@ class NSAVisionAssistDemo:
         if self.verbose:
             num_params = sum(p.numel() for p in self.model.parameters())
             print(f"NSA Model loaded with {num_params:,} parameters")
-            print(f"Model input: (B, 1, W, H), output: (B, 2, W, H)")
+            print(f"Model input: (B, 1, H, W), output: (B, 2, H, W)")
 
     def _init_face_mesh(self):
         """Initialize MediaPipe Face Mesh."""
@@ -226,36 +219,35 @@ class NSAVisionAssistDemo:
         if self.verbose:
             print("MediaPipe Face Mesh initialized")
 
-    def _init_preprocessing(self):
-        """Initialize preprocessing components."""
-        # No special preprocessing needed beyond normalization
-        pass
-
-    def _extract_eye_region(self, frame, landmarks):
+    def _extract_eye_region(self, frame, landmarks, eye_indices):
         """
-        Extract left eye region from frame using MediaPipe landmarks.
+        Extract eye region from frame using MediaPipe landmarks.
 
         Args:
             frame: Input BGR frame
             landmarks: MediaPipe face landmarks
+            eye_indices: List of landmark indices for the eye
 
         Returns:
             tuple: (eye_crop, bbox) where bbox is (x, y, w, h), or (None, None)
         """
         h, w = frame.shape[:2]
 
-        # Extract left eye landmark coordinates into pre-allocated buffer
-        for i, idx in enumerate(self.LEFT_EYE_INDICES):
+        # Extract eye landmark coordinates into pre-allocated buffer
+        for i, idx in enumerate(eye_indices):
             landmark = landmarks.landmark[idx]
             self._eye_points_buffer[i, 0] = int(landmark.x * w)
             self._eye_points_buffer[i, 1] = int(landmark.y * h)
 
-        if self.verbose:
-            print(f"  First 3 eye landmarks: {self._eye_points_buffer[:3].tolist()}")
+        # Use only the portion of the buffer that was filled
+        eye_points = self._eye_points_buffer[: len(eye_indices)]
 
-        # Compute bounding box using pre-allocated buffer
-        x_min, y_min = self._eye_points_buffer.min(axis=0)
-        x_max, y_max = self._eye_points_buffer.max(axis=0)
+        if self.verbose:
+            print(f"  First 3 eye landmarks: {eye_points[:3].tolist()}")
+
+        # Compute bounding box
+        x_min, y_min = eye_points.min(axis=0)
+        x_max, y_max = eye_points.max(axis=0)
 
         bbox_w = x_max - x_min
         bbox_h = y_max - y_min
@@ -305,22 +297,20 @@ class NSAVisionAssistDemo:
     def _preprocess(self, eye_crop):
         """
         Preprocess eye region for model inference.
-        CRITICAL: Must match training preprocessing exactly.
+        NO PREPROCESSING - just resize, grayscale, and normalize.
 
         Uses pre-allocated buffers to avoid per-frame memory allocations.
-        All operations use dst= parameters to write directly to pre-allocated buffers.
 
         Args:
             eye_crop: BGR image of eye region
 
         Returns:
-            np.ndarray: Preprocessed tensor of shape (1, 1, 640, 400)
+            np.ndarray: Preprocessed tensor of shape (1, 1, 400, 640)
         """
         if self.verbose:
             t_start = time.time()
 
-        # Step 1: Resize to model input size FIRST (into pre-allocated BGR buffer)
-        # This ensures all subsequent operations work on fixed-size buffers
+        # Step 1: Resize to model input size
         cv2.resize(
             eye_crop,
             (self.MODEL_WIDTH, self.MODEL_HEIGHT),
@@ -334,7 +324,7 @@ class NSAVisionAssistDemo:
                 f"shape={self._eye_crop_resized.shape}"
             )
 
-        # Step 2: Convert to grayscale (into pre-allocated buffer)
+        # Step 2: Convert to grayscale
         cv2.cvtColor(self._eye_crop_resized, cv2.COLOR_BGR2GRAY, dst=self._gray_buffer)
         if self.verbose:
             t_gray = time.time()
@@ -344,7 +334,7 @@ class NSAVisionAssistDemo:
             )
 
         # Step 3: Normalize (mean=0.5, std=0.5) -> range [-1, 1]
-        # Use in-place operations with pre-allocated buffer
+        # NO CLAHE, NO GAMMA - just normalize directly
         np.multiply(self._gray_buffer, 1.0 / 255.0, out=self._normalized_buffer)
         np.subtract(
             self._normalized_buffer, self.NORMALIZE_MEAN, out=self._normalized_buffer
@@ -359,9 +349,9 @@ class NSAVisionAssistDemo:
                 f"range=[{self._normalized_buffer.min():.3f}, {self._normalized_buffer.max():.3f}]"
             )
 
-        # Step 4: Fill pre-allocated tensor with transposed data
-        # Model expects (B, C, W, H) = (1, 1, 640, 400), so transpose H,W -> W,H
-        self._input_tensor[0, 0] = self._normalized_buffer.T
+        # Step 4: Fill pre-allocated tensor
+        # NSA model expects (B, C, H, W) = (1, 1, 400, 640)
+        self._input_tensor[0, 0] = self._normalized_buffer
 
         if self.verbose:
             t_end = time.time()
@@ -372,14 +362,15 @@ class NSAVisionAssistDemo:
 
         return self._input_tensor
 
-    def _run_inference(self, input_tensor):
+    def _run_inference(self, input_tensor, mask_buffer):
         """
         Run model inference on preprocessed input.
 
         Uses pre-allocated mask buffer to avoid per-frame allocations.
 
         Args:
-            input_tensor: Preprocessed tensor of shape (1, 1, 640, 400)
+            input_tensor: Preprocessed tensor of shape (1, 1, 400, 640)
+            mask_buffer: Pre-allocated buffer to store the output mask
 
         Returns:
             tuple: (mask, inference_time) where mask is shape (400, 640)
@@ -397,35 +388,46 @@ class NSAVisionAssistDemo:
         output_np = output.cpu().numpy()
 
         # Post-processing: argmax to get binary mask
-        # Model outputs (B, C, W, H) = (1, 2, 640, 400), argmax over classes gives (640, 400)
-        # Use pre-allocated _argmax_buffer to store result before transpose
+        # Model outputs (B, C, H, W) = (1, 2, 400, 640), argmax over classes gives (400, 640)
         np.argmax(output_np[0], axis=0, out=self._argmax_buffer)
-        # Transpose and copy to mask buffer (auto-casts int64/int32 to uint8)
-        self._mask_buffer[:] = self._argmax_buffer.T
+        # Copy to mask buffer (auto-casts int64/int32 to uint8)
+        mask_buffer[:] = self._argmax_buffer
 
         inference_time = (time.time() - t_start) * 1000  # Convert to ms
 
         if self.verbose:
             print(
                 f"  Inference: {inference_time:.1f}ms, "
-                f"output shape={output_np.shape}, mask shape={self._mask_buffer.shape}, "
-                f"mask values=[{self._mask_buffer.min()}, {self._mask_buffer.max()}]"
+                f"output shape={output_np.shape}, mask shape={mask_buffer.shape}, "
+                f"mask values=[{mask_buffer.min()}, {mask_buffer.max()}]"
             )
 
-        return self._mask_buffer, inference_time
+        return mask_buffer, inference_time
 
-    def _visualize(self, frame, eye_crop, mask, bbox, inference_time, face_detected):
+    def _visualize(
+        self,
+        frame,
+        left_eye_crop,
+        left_mask,
+        left_bbox,
+        right_eye_crop,
+        right_mask,
+        right_bbox,
+        inference_time,
+        face_detected,
+    ):
         """
-        Visualize segmentation results on frame.
-
-        Uses pre-allocated buffers to minimize per-frame allocations.
+        Visualize segmentation results on frame with dual overlays.
 
         Args:
             frame: Original BGR frame
-            eye_crop: Eye region crop
-            mask: Binary segmentation mask (400, 640)
-            bbox: Bounding box (x, y, w, h)
-            inference_time: Inference time in milliseconds
+            left_eye_crop: Left eye region crop
+            left_mask: Binary segmentation mask for left eye (400, 640)
+            left_bbox: Left eye bounding box (x, y, w, h)
+            right_eye_crop: Right eye region crop
+            right_mask: Binary segmentation mask for right eye (400, 640)
+            right_bbox: Right eye bounding box (x, y, w, h)
+            inference_time: Total inference time in milliseconds
             face_detected: Whether face was detected
 
         Returns:
@@ -444,23 +446,22 @@ class NSAVisionAssistDemo:
         banner_x = 0
         banner_w = annotated.shape[1]
 
-        # Semi-transparent black background - draw directly on banner region only
-        # Create a view of just the banner region for blending
+        # Semi-transparent black background
         banner_region = annotated[
             banner_y : banner_y + banner_height, banner_x : banner_x + banner_w
         ]
-        # Darken the banner region in-place (multiply by 0.5)
         np.multiply(banner_region, 0.5, out=banner_region, casting="unsafe")
 
         # Status text
         if not face_detected:
             status_text = "No Face Detected"
             status_color = (0, 255, 255)  # Yellow
-        elif mask is None:
+        elif left_mask is None and right_mask is None:
             status_text = "Move Closer"
             status_color = (0, 255, 255)  # Yellow
         else:
-            status_text = "Face Detected"
+            eyes_detected = sum([left_mask is not None, right_mask is not None])
+            status_text = f"Both Eyes Detected" if eyes_detected == 2 else f"{eyes_detected} Eye Detected"
             status_color = (0, 255, 0)  # Green
 
         text_size = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)[0]
@@ -476,36 +477,85 @@ class NSAVisionAssistDemo:
             2,
         )
 
-        # If we have a valid mask, overlay it on the eye region
-        if mask is not None and bbox is not None:
-            x, y, w, h = bbox
+        # Overlay LEFT eye mask (green)
+        if left_mask is not None and left_bbox is not None:
+            x, y, w, h = left_bbox
 
-            # Resize mask to match eye crop size (use view of pre-allocated buffer)
+            # Resize mask to match eye crop size
             mask_view = self._mask_viz_buffer[:h, :w]
-            cv2.resize(mask, (w, h), dst=mask_view, interpolation=cv2.INTER_NEAREST)
+            cv2.resize(left_mask, (w, h), dst=mask_view, interpolation=cv2.INTER_NEAREST)
 
             # Reuse green overlay cache if same size
-            if self._green_overlay_size != (h, w):
-                self._green_overlay_cache = np.zeros((h, w, 3), dtype=np.uint8)
-                self._green_overlay_size = (h, w)
+            if self._green_overlay_size_left != (h, w):
+                self._green_overlay_cache_left = np.zeros((h, w, 3), dtype=np.uint8)
+                self._green_overlay_size_left = (h, w)
             else:
-                self._green_overlay_cache.fill(0)
+                self._green_overlay_cache_left.fill(0)
 
-            self._green_overlay_cache[mask_view == 1] = (0, 255, 0)
+            self._green_overlay_cache_left[mask_view == 1] = (0, 255, 0)
 
             # Blend with original eye region
             eye_region = annotated[y : y + h, x : x + w]
             cv2.addWeighted(
                 eye_region,
                 1 - self.OVERLAY_ALPHA,
-                self._green_overlay_cache,
+                self._green_overlay_cache_left,
                 self.OVERLAY_ALPHA,
                 0,
                 eye_region,
             )
 
-            # Draw bounding box
+            # Draw bounding box (green for left eye)
             cv2.rectangle(annotated, (x, y), (x + w, y + h), (0, 255, 0), 3)
+            cv2.putText(
+                annotated,
+                "L",
+                (x + 10, y + 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.0,
+                (0, 255, 0),
+                2,
+            )
+
+        # Overlay RIGHT eye mask (cyan)
+        if right_mask is not None and right_bbox is not None:
+            x, y, w, h = right_bbox
+
+            # Resize mask to match eye crop size
+            mask_view = self._mask_viz_buffer[:h, :w]
+            cv2.resize(right_mask, (w, h), dst=mask_view, interpolation=cv2.INTER_NEAREST)
+
+            # Reuse overlay cache if same size
+            if self._green_overlay_size_right != (h, w):
+                self._green_overlay_cache_right = np.zeros((h, w, 3), dtype=np.uint8)
+                self._green_overlay_size_right = (h, w)
+            else:
+                self._green_overlay_cache_right.fill(0)
+
+            self._green_overlay_cache_right[mask_view == 1] = (255, 255, 0)  # Cyan (BGR)
+
+            # Blend with original eye region
+            eye_region = annotated[y : y + h, x : x + w]
+            cv2.addWeighted(
+                eye_region,
+                1 - self.OVERLAY_ALPHA,
+                self._green_overlay_cache_right,
+                self.OVERLAY_ALPHA,
+                0,
+                eye_region,
+            )
+
+            # Draw bounding box (cyan for right eye)
+            cv2.rectangle(annotated, (x, y), (x + w, y + h), (255, 255, 0), 3)
+            cv2.putText(
+                annotated,
+                "R",
+                (x + 10, y + 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.0,
+                (255, 255, 0),
+                2,
+            )
 
         # Draw FPS counter (top-left, below banner)
         fps = self._calculate_fps()
@@ -543,14 +593,14 @@ class NSAVisionAssistDemo:
             2,
         )
 
-        # Draw model info (below device)
+        # Draw mode indicator
         cv2.putText(
             annotated,
-            f"NSA-{self.model_size}",
+            f"Mode: NSA Dual Eye ({self.model_size})",
             (10, banner_height + 155),
             cv2.FONT_HERSHEY_SIMPLEX,
-            1.0,
-            (0, 255, 0),
+            0.8,
+            (255, 200, 0),
             2,
         )
 
@@ -572,19 +622,20 @@ class NSAVisionAssistDemo:
     def run(self):
         """Main processing loop."""
         print("\n" + "=" * 80)
-        print("NSA Pupil Segmentation Live Demo")
+        print("VisionAssist Live Demo - NSA DUAL EYE")
         print("=" * 80)
         print(f"Model: {self.model_path}")
         print(f"Model Size: {self.model_size}")
         print(f"Camera: {self.camera_index}")
         print(f"Execution Provider: {self.execution_provider}")
+        print(f"Mode: Both eyes with NSA (Native Sparse Attention)")
         print("\nControls:")
         print("  ESC - Exit")
         print("  SPACE - Pause/Resume")
         print("=" * 80 + "\n")
 
         # Create named window for proper display on macOS
-        cv2.namedWindow("NSA Pupil Segmentation Live Demo", cv2.WINDOW_NORMAL)
+        cv2.namedWindow("VisionAssist NSA Dual Eye Demo", cv2.WINDOW_NORMAL)
 
         # Allow camera to warm up (important for macOS)
         print("Warming up camera...")
@@ -635,33 +686,62 @@ class NSAVisionAssistDemo:
                             f"detected={face_detected}"
                         )
 
-                    # Initialize variables
-                    eye_crop = None
-                    bbox = None
-                    mask = None
-                    inference_time = None
+                    # Initialize variables for both eyes
+                    left_eye_crop = None
+                    left_bbox = None
+                    left_mask = None
+                    right_eye_crop = None
+                    right_bbox = None
+                    right_mask = None
+                    total_inference_time = 0
 
                     # Process if face detected
                     if face_detected:
                         landmarks = results.multi_face_landmarks[0]
 
-                        # Extract eye region
-                        eye_crop, bbox = self._extract_eye_region(frame, landmarks)
+                        # Extract LEFT eye region
+                        left_eye_crop, left_bbox = self._extract_eye_region(
+                            frame, landmarks, self.LEFT_EYE_INDICES
+                        )
 
-                        if eye_crop is not None:
+                        if left_eye_crop is not None:
                             # Preprocess
-                            input_tensor = self._preprocess(eye_crop)
-
+                            input_tensor = self._preprocess(left_eye_crop)
                             # Run inference
-                            mask, inference_time = self._run_inference(input_tensor)
+                            left_mask, left_time = self._run_inference(
+                                input_tensor, self._mask_buffer_left
+                            )
+                            total_inference_time += left_time
 
-                    # Visualize
+                        # Extract RIGHT eye region
+                        right_eye_crop, right_bbox = self._extract_eye_region(
+                            frame, landmarks, self.RIGHT_EYE_INDICES
+                        )
+
+                        if right_eye_crop is not None:
+                            # Preprocess
+                            input_tensor = self._preprocess(right_eye_crop)
+                            # Run inference
+                            right_mask, right_time = self._run_inference(
+                                input_tensor, self._mask_buffer_right
+                            )
+                            total_inference_time += right_time
+
+                    # Visualize with dual overlays
                     annotated = self._visualize(
-                        frame, eye_crop, mask, bbox, inference_time, face_detected
+                        frame,
+                        left_eye_crop,
+                        left_mask,
+                        left_bbox,
+                        right_eye_crop,
+                        right_mask,
+                        right_bbox,
+                        total_inference_time if total_inference_time > 0 else None,
+                        face_detected,
                     )
 
                     # Display
-                    cv2.imshow("NSA Pupil Segmentation Live Demo", annotated)
+                    cv2.imshow("VisionAssist NSA Dual Eye Demo", annotated)
 
                     self.frame_count += 1
                 else:
@@ -697,22 +777,22 @@ class NSAVisionAssistDemo:
 
 
 def main():
-    """Main entry point for the NSA Pupil Segmentation live demo."""
+    """Main entry point for the VisionAssist NSA dual-eye demo."""
     parser = argparse.ArgumentParser(
-        description="NSA Pupil Segmentation Live Demo - Native Sparse Attention Webcam Application"
+        description="VisionAssist Live Demo - NSA Dual Eye Segmentation"
     )
     parser.add_argument(
         "--model",
         type=str,
         required=True,
-        help="Path to PyTorch model checkpoint file (REQUIRED)",
+        help="Path to PyTorch NSA model checkpoint file (REQUIRED)",
     )
     parser.add_argument(
         "--model-size",
         type=str,
         default="small",
         choices=["pico", "nano", "tiny", "small", "medium"],
-        help="Model size configuration (default: small)",
+        help="NSA model size (default: small)",
     )
     parser.add_argument(
         "--camera",
@@ -729,7 +809,7 @@ def main():
     args = parser.parse_args()
 
     # Initialize and run demo
-    demo = NSAVisionAssistDemo(
+    demo = VisionAssistDemoDD(
         model_path=args.model,
         model_size=args.model_size,
         camera_index=args.camera,
