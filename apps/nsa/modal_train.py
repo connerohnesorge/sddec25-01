@@ -1085,47 +1085,15 @@ def train(
         def __init__(
             self,
             in_channels: int = 1,
-            embed_dims: tuple = (
-                32,
-                64,
-                96,
-            ),
+            embed_dims: tuple = ( 32, 64, 96,),
             depths: tuple = (1, 1, 1),
-            num_heads: tuple = (
-                2,
-                2,
-                4,
-            ),
-            mlp_ratios: tuple = (
-                2,
-                2,
-                2,
-            ),
-            compress_block_sizes: tuple = (
-                4,
-                4,
-                4,
-            ),
-            compress_strides: tuple = (
-                2,
-                2,
-                2,
-            ),
-            select_block_sizes: tuple = (
-                4,
-                4,
-                4,
-            ),
-            num_selects: tuple = (
-                4,
-                4,
-                4,
-            ),
-            window_sizes: tuple = (
-                7,
-                7,
-                7,
-            ),
+            num_heads: tuple = ( 2, 2, 4,),
+            mlp_ratios: tuple = ( 2, 2, 2,),
+            compress_block_sizes: tuple = ( 4, 4, 4,),
+            compress_strides: tuple = ( 2, 2, 2,),
+            select_block_sizes: tuple = ( 4, 4, 4,),
+            num_selects: tuple = ( 4, 4, 4,),
+            window_sizes: tuple = ( 7, 7, 7,),
         ):
             super().__init__()
 
@@ -1140,21 +1108,11 @@ def train(
                 depth=depths[0],
                 num_heads=num_heads[0],
                 mlp_ratio=mlp_ratios[0],
-                compress_block_size=compress_block_sizes[
-                    0
-                ],
-                compress_stride=compress_strides[
-                    0
-                ],
-                select_block_size=select_block_sizes[
-                    0
-                ],
-                num_select=num_selects[
-                    0
-                ],
-                window_size=window_sizes[
-                    0
-                ],
+                compress_block_size=compress_block_sizes[ 0 ],
+                compress_stride=compress_strides[ 0 ],
+                select_block_size=select_block_sizes[ 0 ],
+                num_select=num_selects[ 0 ],
+                window_size=window_sizes[ 0 ],
                 downsample=False,
             )
 
@@ -1164,21 +1122,11 @@ def train(
                 depth=depths[1],
                 num_heads=num_heads[1],
                 mlp_ratio=mlp_ratios[1],
-                compress_block_size=compress_block_sizes[
-                    1
-                ],
-                compress_stride=compress_strides[
-                    1
-                ],
-                select_block_size=select_block_sizes[
-                    1
-                ],
-                num_select=num_selects[
-                    1
-                ],
-                window_size=window_sizes[
-                    1
-                ],
+                compress_block_size=compress_block_sizes[ 1 ],
+                compress_stride=compress_strides[ 1 ],
+                select_block_size=select_block_sizes[ 1 ],
+                num_select=num_selects[ 1 ],
+                window_size=window_sizes[ 1 ],
                 downsample=True,
             )
 
@@ -1188,21 +1136,11 @@ def train(
                 depth=depths[2],
                 num_heads=num_heads[2],
                 mlp_ratio=mlp_ratios[2],
-                compress_block_size=compress_block_sizes[
-                    2
-                ],
-                compress_stride=compress_strides[
-                    2
-                ],
-                select_block_size=select_block_sizes[
-                    2
-                ],
-                num_select=num_selects[
-                    2
-                ],
-                window_size=window_sizes[
-                    2
-                ],
+                compress_block_size=compress_block_sizes[ 2 ],
+                compress_stride=compress_strides[ 2 ],
+                select_block_size=select_block_sizes[ 2 ],
+                num_select=num_selects[ 2 ],
+                window_size=window_sizes[ 2 ],
                 downsample=True,
             )
 
@@ -1341,47 +1279,15 @@ def train(
             self,
             in_channels: int = 1,
             num_classes: int = 2,
-            embed_dims: tuple = (
-                32,
-                64,
-                96,
-            ),
+            embed_dims: tuple = ( 32, 64, 96,),
             depths: tuple = (1, 1, 1),
-            num_heads: tuple = (
-                2,
-                2,
-                4,
-            ),
-            mlp_ratios: tuple = (
-                2,
-                2,
-                2,
-            ),
-            compress_block_sizes: tuple = (
-                4,
-                4,
-                4,
-            ),
-            compress_strides: tuple = (
-                2,
-                2,
-                2,
-            ),
-            select_block_sizes: tuple = (
-                4,
-                4,
-                4,
-            ),
-            num_selects: tuple = (
-                4,
-                4,
-                4,
-            ),
-            window_sizes: tuple = (
-                7,
-                7,
-                7,
-            ),
+            num_heads: tuple = ( 2, 2, 4,),
+            mlp_ratios: tuple = ( 2, 2, 2,),
+            compress_block_sizes: tuple = ( 4, 4, 4,),
+            compress_strides: tuple = ( 2, 2, 2,),
+            select_block_sizes: tuple = ( 4, 4, 4,),
+            num_selects: tuple = ( 4, 4, 4,),
+            window_sizes: tuple = ( 7, 7, 7,),
             decoder_dim: int = 32,
         ):
             super().__init__()
@@ -1504,25 +1410,10 @@ def train(
             "embed_dims": (4, 8, 12),
             "depths": (1, 1, 1),
             "num_heads": (1, 1, 1),
-            "mlp_ratios": (
-                1.0,
-                1.0,
-                1.0,
-            ),
-            "compress_block_sizes": (
-                4,
-                4,
-                4,
-            ),
-            "compress_strides": (
-                4,
-                4,
-                4,
-            ),
-            "select_block_sizes": (
-                4,
-                4,
-                4,
+            "mlp_ratios": ( 1.0, 1.0, 1.0,),
+            "compress_block_sizes": ( 4, 4, 4,),
+            "compress_strides": ( 4, 4, 4,),
+            "select_block_sizes": ( 4, 4, 4,
             ),
             "num_selects": (1, 1, 1),
             "window_sizes": (3, 3, 3),
@@ -1532,26 +1423,10 @@ def train(
             "embed_dims": (8, 12, 16),
             "depths": (1, 1, 1),
             "num_heads": (1, 1, 1),
-            "mlp_ratios": (
-                1.5,
-                1.5,
-                1.5,
-            ),
-            "compress_block_sizes": (
-                4,
-                4,
-                4,
-            ),
-            "compress_strides": (
-                4,
-                4,
-                4,
-            ),
-            "select_block_sizes": (
-                4,
-                4,
-                4,
-            ),
+            "mlp_ratios": ( 1.5, 1.5, 1.5,),
+            "compress_block_sizes": ( 4, 4, 4,),
+            "compress_strides": ( 4, 4, 4,),
+            "select_block_sizes": ( 4, 4, 4,),
             "num_selects": (1, 1, 1),
             "window_sizes": (3, 3, 3),
             "decoder_dim": 8,
@@ -1560,26 +1435,10 @@ def train(
             "embed_dims": (12, 24, 32),
             "depths": (1, 1, 1),
             "num_heads": (1, 1, 2),
-            "mlp_ratios": (
-                1.5,
-                1.5,
-                1.5,
-            ),
-            "compress_block_sizes": (
-                4,
-                4,
-                4,
-            ),
-            "compress_strides": (
-                4,
-                4,
-                4,
-            ),
-            "select_block_sizes": (
-                4,
-                4,
-                4,
-            ),
+            "mlp_ratios": ( 1.5, 1.5, 1.5,),
+            "compress_block_sizes": ( 4, 4, 4,),
+            "compress_strides": ( 4, 4, 4,),
+            "select_block_sizes": ( 4, 4, 4,),
             "num_selects": (1, 1, 1),
             "window_sizes": (3, 3, 3),
             "decoder_dim": 12,
@@ -1588,26 +1447,10 @@ def train(
             "embed_dims": (16, 32, 48),
             "depths": (1, 1, 1),
             "num_heads": (1, 2, 2),
-            "mlp_ratios": (
-                1.5,
-                1.5,
-                1.5,
-            ),
-            "compress_block_sizes": (
-                4,
-                4,
-                4,
-            ),
-            "compress_strides": (
-                3,
-                3,
-                3,
-            ),
-            "select_block_sizes": (
-                4,
-                4,
-                4,
-            ),
+            "mlp_ratios": ( 1.5, 1.5, 1.5,),
+            "compress_block_sizes": ( 4, 4, 4,),
+            "compress_strides": ( 3, 3, 3,),
+            "select_block_sizes": ( 4, 4, 4,),
             "num_selects": (2, 2, 2),
             "window_sizes": (3, 3, 3),
             "decoder_dim": 16,
