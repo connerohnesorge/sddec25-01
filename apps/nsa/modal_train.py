@@ -61,17 +61,19 @@ VOLUME_PATH = "/data/sddec25-01"
 
 
 @app.function(
-    gpu="L4",
-    cpu=16.0,
-    memory=32768,
+    # gpu="L4",
+    # cpu=16.0,
+    cpu=1.0,
+    # memory=32768,
     image=train_image,
-    timeout=3600 * 16,
+    # timeout=3600 * 16,
+    timeout=5400,
     volumes={
         VOLUME_PATH: dataset_volume
     },
     secrets=[
         modal.Secret.from_name(
-            "databricks-nsa"
+            "nsasa"
         ),
     ],
 )
@@ -2663,45 +2665,23 @@ def train(
         print(
             "Loading from volume cache (fast)..."
         )
-        try:
-            hf_dataset = load_from_disk(
-                DATASET_CACHE_PATH
-            )
-            print("Loaded from cache!")
-        except Exception as e:
-            print(
-                f"Cache corrupted, re-downloading: {e}"
-            )
-            import shutil
-
-            shutil.rmtree(
-                DATASET_CACHE_PATH,
-                ignore_errors=True,
-            )
-            if os.path.exists(
-                CACHE_MARKER_FILE
-            ):
-                os.remove(
-                    CACHE_MARKER_FILE
-                )
-            cache_exists = False
-
-    if not cache_exists:
+    else:
         print(
             f"Downloading from HuggingFace: {HF_DATASET_REPO}"
         )
         print(
             "First run takes ~20 min, subsequent runs will be fast."
         )
-        hf_dataset = load_dataset(
-            HF_DATASET_REPO
-        )
         os.makedirs(
             VOLUME_PATH, exist_ok=True
         )
-        hf_dataset.save_to_disk(
-            DATASET_CACHE_PATH
-        )
+
+    hf_dataset = load_dataset(
+        HF_DATASET_REPO,
+        cache_dir=DATASET_CACHE_PATH,
+    )
+
+    if not cache_exists:
         with open(
             CACHE_MARKER_FILE, "w"
         ) as f:

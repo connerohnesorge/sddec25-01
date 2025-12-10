@@ -1,0 +1,68 @@
+name: Publish Documents
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: publish-docs
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub App installation token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: 2280081
+          private-key: ${{ secrets.SDDEC2501_PRIVATE_KEY }}
+          owner: conneroisu
+          repositories: sddec25-01
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Compile design document
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: main.tex
+
+      - name: Compile poster
+        uses: xu-cheng/latex-action@v4
+        with:
+          root_file: poster.tex
+          working_directory: poster
+
+      - name: Copy PDFs to www/documents
+        run: |
+          cp main.pdf www/documents/DesignDoc.pdf
+          cp poster/poster.pdf www/documents/Poster.pdf
+
+      - name: Commit and push updated PDFs
+        run: |
+          git add www/documents/DesignDoc.pdf www/documents/Poster.pdf
+          git commit -m "docs: update published documents [skip ci]" || echo "No changes to commit"
+          git push origin main
+
+      - name: Workflow summary
+        run: |
+          echo "## Documents Published Successfully! :page_facing_up:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Updated Files" >> $GITHUB_STEP_SUMMARY
+          echo "- \`www/documents/DesignDoc.pdf\` - Latest compiled design document" >> $GITHUB_STEP_SUMMARY
+          echo "- \`www/documents/Poster.pdf\` - Latest compiled poster" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Design Document](https://sddec25-01.sd.ece.iastate.edu/documents/DesignDoc.pdf)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Poster](https://sddec25-01.sd.ece.iastate.edu/documents/Poster.pdf)" >> $GITHUB_STEP_SUMMARY

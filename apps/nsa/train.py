@@ -89,7 +89,7 @@ def setup_mlflow():
 IMAGE_HEIGHT = 400
 IMAGE_WIDTH = 640
 HF_DATASET_REPO = (
-    "Conner/openeds-precomputed"
+    "Conner/sddec25-01"
 )
 
 
