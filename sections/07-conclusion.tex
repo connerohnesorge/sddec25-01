@@ -5,19 +5,19 @@
 This project optimized semantic segmentation for real-time eye tracking
 in assistive technology. Our approach maintains 99.8\% IoU accuracy while
 improving speed from 160ms to approximately 8.3ms per frame through
-pipelined processing (33.2ms for 4 frames).
+parallelized CPU processing and sequential DPU scheduling (33.2ms for 4 frames).
 
 \subsection{Technical Accomplishments}\label{subsec:technical-accomplishments}
 
 \begin{itemize}
   \item \textbf{Algorithm Analysis}: Comprehensive analysis of the
-    U-Net semantic segmentation architecture for pipelined processing
-    optimization
+    U-Net semantic segmentation architecture for parallelization and
+    sequential execution optimization
   \item \textbf{Sequential DPU Scheduling}: Development of an
     efficient sequential DPU scheduling system that ensures fair
     access allocation across multiple algorithms
-  \item \textbf{Performance Optimization}: Pipelined architecture
-    with multithreaded CPU processing implementation for throughput improvements
+  \item \textbf{Performance Optimization}: Parallelized CPU processing
+    with sequential DPU scheduling implementation for throughput improvements
   \item \textbf{Accuracy Preservation}: Maintained 98.8\% IoU
     accuracy, within the target range of 99.8\%
 \end{itemize}
@@ -41,15 +41,15 @@ pipelined processing (33.2ms for 4 frames).
 \subsection{Technical Impact}\label{subsec:technical-impact}
 
 Our project demonstrates that performance improvements can be achieved
-through intelligent DPU scheduling and pipelined processing rather than
-hardware upgrades. Broader implications:
+through intelligent sequential DPU scheduling and parallelized CPU processing
+rather than hardware upgrades. Broader implications:
 
 \begin{itemize}
   \item \textbf{Resource-Constrained AI}: Methods for optimizing AI
     performance on limited hardware platforms with single-DPU architectures
   \item \textbf{real-time Processing}: Techniques for achieving
     real-time performance in medical and assistive applications
-    through efficient pipelined processing
+    through efficient parallelized processing and sequential resource scheduling
   \item \textbf{Sequential Resource Scheduling}: Strategies for
     effective scheduling with shared hardware accelerators
   \item \textbf{Edge Computing}: Advances in bringing AI capabilities
