@@ -113,10 +113,7 @@ def train(
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from datasets import (
-        load_dataset,
-        load_from_disk,
-    )
+    from datasets import load_dataset
     import mlflow
     import kornia.augmentation as K
     from kornia.augmentation import (
