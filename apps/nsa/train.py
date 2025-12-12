@@ -27,14 +27,8 @@ from datasets import load_dataset
 import mlflow
 import kornia.augmentation as K
 from kornia.augmentation import AugmentationSequential
+import mlflow
 
-# MLflow for experiment tracking
-try:
-    import mlflow
-
-    MLFLOW_AVAILABLE = True
-except ImportError:
-    MLFLOW_AVAILABLE = False
 # Import NSA model and loss
 from nsa import (
     NSAPupilSeg,
@@ -173,8 +167,6 @@ class GPUAugmentation(nn.Module):
 # Helper Functions
 def is_mlflow_configured():
     """Check if MLflow is available and properly configured via environment variables."""
-    if not MLFLOW_AVAILABLE:
-        return False
     # Check for required environment variables
     required_vars = [
         "DATABRICKS_TOKEN",
@@ -322,7 +314,8 @@ def train(args):
         "(First run will download ~3GB, subsequent runs use cached data)"
     )
     hf_dataset = load_dataset(
-        HF_DATASET_REPO
+        HF_DATASET_REPO,
+        cache_dir="./hf_cache",
     )
     num_train_samples = len(
         hf_dataset["train"]
@@ -376,11 +369,6 @@ def train(args):
     train_augment = GPUAugmentation(training=True).to(device)
     val_augment = GPUAugmentation(training=False).to(device)
 
-    use_mlflow = is_mlflow_configured()
-    mlflow_run = None
-    print(
-        "\nMLflow is configured. Starting experiment tracking..."
-    )
     # Configure MLflow tracking URI (Databricks or custom)
     tracking_uri = os.environ.get(
         "MLFLOW_TRACKING_URI"
@@ -684,26 +672,25 @@ def train(args):
         print(f"  Bound Loss: {train_boundary_val:.4f} | {valid_boundary_val:.4f}")
         print(f"  LR: {current_lr:.6f} | Alpha: {alpha:.4f}")
         # MLflow Metrics Logging
-        if use_mlflow:
-            mlflow.log_metrics(
-                {
-                    "train_loss": train_loss_val,
-                    "train_iou": train_iou,
-                    "train_ce_loss": train_ce_val,
-                    "train_dice_loss": train_dice_val,
-                    "train_surface_loss": train_surface_val,
-                    "train_boundary_loss": train_boundary_val,
-                    "valid_loss": valid_loss_val,
-                    "valid_iou": valid_iou,
-                    "valid_ce_loss": valid_ce_val,
-                    "valid_dice_loss": valid_dice_val,
-                    "valid_surface_loss": valid_surface_val,
-                    "valid_boundary_loss": valid_boundary_val,
-                    "learning_rate": current_lr,
-                    "alpha": alpha,
-                },
-                step=epoch,
-            )
+        mlflow.log_metrics(
+            {
+                "train_loss": train_loss_val,
+                "train_iou": train_iou,
+                "train_ce_loss": train_ce_val,
+                "train_dice_loss": train_dice_val,
+                "train_surface_loss": train_surface_val,
+                "train_boundary_loss": train_boundary_val,
+                "valid_loss": valid_loss_val,
+                "valid_iou": valid_iou,
+                "valid_ce_loss": valid_ce_val,
+                "valid_dice_loss": valid_dice_val,
+                "valid_surface_loss": valid_surface_val,
+                "valid_boundary_loss": valid_boundary_val,
+                "learning_rate": current_lr,
+                "alpha": alpha,
+            },
+            step=epoch,
+        )
         # Save Checkpoints
         if valid_iou > best_iou:
             best_iou = valid_iou
@@ -761,16 +748,15 @@ def train(args):
         f"\nCheckpoint saved to: {args.checkpoint_dir}/best_nsa_{args.model_size}_model.pth"
     )
     # MLflow Finalization
-    if use_mlflow:
-        # Log final best IoU metric
-        mlflow.log_metric(
-            "final_best_iou", best_iou
-        )
-        # End the MLflow run
-        mlflow.end_run()
-        print(
-            "\nMLflow run completed successfully."
-        )
+    # Log final best IoU metric
+    mlflow.log_metric(
+        "final_best_iou", best_iou
+    )
+    # End the MLflow run
+    mlflow.end_run()
+    print(
+        "\nMLflow run completed successfully."
+    )
 
 
 def main():
