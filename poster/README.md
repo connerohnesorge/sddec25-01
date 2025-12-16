@@ -1,6 +1,6 @@
 # VisionAssist Senior Design Poster
 
-This directory contains the A0 portrait format poster for the VisionAssist senior design project (SDDEC25-01) at Iowa State University.
+This directory contains the custom portrait format poster for the VisionAssist senior design project (SDDEC25-01) at Iowa State University.
 
 ## Quick Start
 
@@ -8,12 +8,21 @@ To compile the poster locally:
 
 ```bash
 cd poster
-nix develop ../ -c ./build.sh
+nix develop ../ -c latexmk -pdf poster.tex
 ```
 
-**Result**: Generates `poster/poster.pdf` (A0 portrait, 841mm x 1189mm / 33.1" x 46.8")
+**Result**: Generates `poster/poster.pdf` (20.75" x 37", 9:16 aspect ratio portrait)
 
-**Note**: Due to a known bug in tikzposter v2.0, direct use of `ltx-compile` may report errors despite successful PDF generation. The `build.sh` script handles this automatically.
+To convert to PNG (preferred format):
+
+```bash
+cd poster
+./convert-to-png.sh
+```
+
+**Result**: Generates `poster/poster.png` at 300 DPI
+
+**Note**: Due to a known bug in tikzposter v2.0, `latexmk` may report warnings about missing characters, but the PDF generates correctly.
 
 ## Directory Structure
 
@@ -136,10 +145,11 @@ Poster content is split into modular sections in the `sections/` directory. Each
 
 ### Format Specifications
 
-- **Size**: A0 portrait (841mm x 1189mm / 33.1" x 46.8")
+- **Size**: 20.75" wide x 37" tall (9:16 aspect ratio, portrait orientation)
+- **Format**: PNG preferred (use `convert-to-png.sh` to convert from PDF)
 - **Paper type**: Recommended 200gsm poster paper or matte cardstock
 - **Color profile**: RGB (poster is optimized for RGB printing)
-- **Resolution**: PDF generation at 300+ DPI equivalent
+- **Resolution**: 300 DPI for PNG output
 
 ### Print Recommendations
 
@@ -149,7 +159,7 @@ Poster content is split into modular sections in the `sections/` directory. Each
 - Digital printing preferred for color accuracy
 
 **Test printing**:
-- Print at 25% scale (fits on letter size: 8.5" x 11.7") to verify colors and layout
+- Print at scaled size to verify colors and layout
 - Check for text readability and color accuracy before full-size print
 
 **Viewing distance**:
@@ -171,11 +181,15 @@ All commands assume you are in the `poster/` directory.
 ```bash
 # Single compilation (standard workflow)
 cd poster
-nix develop -c ltx-compile poster.tex
+nix develop ../ -c latexmk -pdf poster.tex
+
+# Convert PDF to PNG (preferred format)
+cd poster
+./convert-to-png.sh
 
 # Watch mode (auto-recompile on file changes)
 cd poster
-nix develop -c ltx-watch poster.tex
+nix develop ../ -c latexmk -pvc -pdf poster.tex
 # Press Ctrl+C to stop
 
 # Clean auxiliary files
@@ -210,10 +224,11 @@ nix develop
 
 ### Before Committing
 
-1. **Test local compilation**: Ensure `nix develop -c ltx-compile poster/poster.tex` succeeds
-2. **Run lint check**: Fix any errors from `nix develop -c lint`
-3. **Verify asset paths**: Ensure all `\includegraphics` use correct relative paths (`../assets/`)
-4. **Review PDF output**: Check `poster.pdf` for formatting and content accuracy
+1. **Test local compilation**: Ensure `nix develop ../ -c latexmk -pdf poster.tex` succeeds
+2. **Convert to PNG**: Run `./convert-to-png.sh` to generate PNG output
+3. **Run lint check**: Fix any errors from `nix develop ../ -c lint`
+4. **Verify asset paths**: Ensure all `\includegraphics` use correct relative paths (`../assets/`)
+5. **Review output**: Check `poster.pdf` and `poster.png` for formatting and content accuracy
 
 ### Code Style
 
@@ -244,8 +259,8 @@ This is a well-documented bug in tikzposter version 2.0 and does not affect the 
 ### Compilation Errors
 
 **Error**: `! LaTeX Error: File 'poster-config.tex' not found`
-- **Cause**: Running `ltx-compile` from wrong directory
-- **Solution**: Always run from `poster/` directory: `cd poster && nix develop -c ltx-compile poster.tex`
+- **Cause**: Running compilation from wrong directory
+- **Solution**: Always run from `poster/` directory: `cd poster && nix develop ../ -c latexmk -pdf poster.tex`
 
 **Error**: `! LaTeX Error: File '../assets/unet.png' not found`
 - **Cause**: Image file missing or misspelled in `sections/*.tex`
@@ -258,7 +273,7 @@ This is a well-documented bug in tikzposter version 2.0 and does not affect the 
 ### Visual Issues
 
 **Text too small/large**:
-- **Solution**: Adjust font size in `poster.tex`: `\documentclass[20pt, a0paper, portrait]{tikzposter}`
+- **Solution**: Adjust font size in `poster.tex`: `\documentclass[20pt, portrait]{tikzposter}`
 - Options: `12pt`, `14pt`, `17pt`, `20pt`, `25pt`
 
 **Colors look wrong**:
