@@ -1,101 +1,29 @@
-% VisionAssist Senior Design Poster
-% Iowa State University SDDEC25-01
-% Custom Portrait Format Poster (20.75" x 37", 9:16 aspect ratio)
+\documentclass[25pt, portrait, width=20.75in, height=37in]{tikzposter}
 
-\documentclass[25pt, portrait]{tikzposter}
-\usepackage[paperwidth=20.75in, paperheight=37in]{geometry}
+\usepackage{lipsum}
 
-% Essential packages
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage{lmodern}
-\usepackage{graphicx}
-\usepackage{amsmath}
-\usepackage{amssymb}
-\usepackage{microtype}
-\usepackage{booktabs}
-
-% TikZ libraries for coordinate calculations
-\usetikzlibrary{calc}
-
-% Bibliography setup - using relative path to main project references
-\usepackage[backend=biber, style=ieee, sorting=none]{biblatex}
-\addbibresource{../references.bib}
-
-% Load poster theme configuration
-\makeatletter
-\input{poster-config.tex}
-\makeatother
-
-% Document metadata
-\title{}
-\author{Iowa State University Senior Design Team SDDEC25--01}
-\institute{Department of Electrical and Computer Engineering}
-
-% Adjust title styling for readability
-\settitle{
-  \centering
-  \vbox{
-    \centering
-    \color{titlefgcolor}
-    {\bfseries \Huge \@title \par}
-    \vspace*{0.25em}
-    {\LARGE \textbf{Senior Design Project SDDEC25--01} \par}
-    \vspace*{0.15em}
-    {\Large Conner Ohnesorge, Tyler Schaefer, Aidan Perry, Joey Metzen \par}
-    \vspace*{0.1em}
-    {\Large Iowa State University \par}
-    \vspace*{0.05em}
-    {\large Department of Electrical and Computer Engineering \par}
-    \vspace*{0.15em}
-    {\large \textbf{Client:} JR Spidell \quad \textbf{Advisor:} Dr.~Namrata Vaswani}
-  }
-}
+\title{Your Poster Title}
+\author{Your Name}
+\institute{Your Institution}
 
 \begin{document}
 
 \maketitle
 
-% Two-column layout for better content organization
-\begin{columns}
-	\column{0.5}
-
-	% LEFT COLUMN
-
-	\block{Problem \& Approach}{
-		\input{sections/introduction.tex}
-	}
-
-	\block{System Architecture}{
-		\input{sections/architecture.tex}
-	}
-
-	\block{Hardware \& AI Model}{
-		\input{sections/methodology.tex}
-	}
-
-	\column{0.5}
-
-	% RIGHT COLUMN
-
-	\block{Performance \& Validation}{
-		\input{sections/results.tex}
-	}
-
-	\block{Impact \& Next Steps}{
-		\input{sections/conclusion.tex}
-	}
-
-\end{columns}
-
-% Bottom section spanning full width
-\block{Acknowledgments}{
-	\input{sections/acknowledgments.tex}
+\block{Introduction}{
+    \lipsum[1]
 }
 
-% Bibliography section at bottom
-\block{References}{
-	\printbibliography[heading=none]
+\block{Methods}{
+    \lipsum[2]
+}
+
+\block{Results}{
+    \lipsum[3]
+}
+
+\block{Conclusion}{
+    \lipsum[4]
 }
 
 \end{document}
