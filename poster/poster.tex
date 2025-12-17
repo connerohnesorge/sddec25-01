@@ -1,29 +1,72 @@
-\documentclass[25pt, portrait, width=20.75in, height=37in]{tikzposter}
+\documentclass[25pt, portrait]{tikzposter}
 
-\usepackage{lipsum}
+% Set custom dimensions: 20.75" x 37" (9:16 aspect ratio)
+\geometry{paperwidth=20.75in, paperheight=37in}
 
-\title{Your Poster Title}
-\author{Your Name}
-\institute{Your Institution}
+% ===== PACKAGES =====
+
+\usepackage{graphicx}        % Include images
+\usepackage{booktabs}        % Professional tables
+\usepackage[backend=biber, style=ieee, sorting=none]{biblatex}  % IEEE citations
+
+% ===== BIBLIOGRAPHY =====
+
+\addbibresource{../references.bib}  % Shared bibliography with main document
+
+% ===== ISU THEME CONFIGURATION =====
+
+\input{poster-config.tex}  % ISU color theme and styling
+
+% ===== PROJECT METADATA =====
+
+\title{\parbox{\linewidth}{\centering VisionAssist: AI-Powered Eye Tracking\\for Medical Assistive Technology}}
+\author{Conner Ohnesorge, Tyler Schaefer, Aidan Perry, Joey Metzen}
+\institute{Iowa State University\\Department of Electrical and Computer Engineering\\SDDEC25-01 Senior Design Project}
+
+% ===== DOCUMENT CONTENT =====
 
 \begin{document}
 
 \maketitle
 
-\block{Introduction}{
-    \lipsum[1]
-}
+% Two-column layout for content
+\begin{columns}
+  
+  % ===== LEFT COLUMN =====
+  \column{0.48}
+  
+  \block{Introduction}{
+    \input{sections/introduction.tex}
+  }
+  
+  \block{Methodology}{
+    \input{sections/methodology.tex}
+  }
+  
+  \block{System Architecture}{
+    \input{sections/architecture.tex}
+  }
+  
+  % ===== RIGHT COLUMN =====
+  \column{0.48}
+  
+  \block{Results}{
+    \input{sections/results.tex}
+  }
+  
+  \block{Conclusion \& Future Work}{
+    \input{sections/conclusion.tex}
+  }
+  
+  \block{Acknowledgments}{
+    \input{sections/acknowledgments.tex}
+  }
 
-\block{Methods}{
-    \lipsum[2]
-}
+\end{columns}
 
-\block{Results}{
-    \lipsum[3]
-}
-
-\block{Conclusion}{
-    \lipsum[4]
-}
+% Optional: Bibliography section (uncomment if citations are used)
+% \block{References}{
+%   \printbibliography[heading=none]
+% }
 
 \end{document}
