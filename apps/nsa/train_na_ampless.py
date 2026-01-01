@@ -268,7 +268,7 @@ def train(args):
     train_loader = DataLoader(
         train_dataset,
         batch_size=args.batch_size,
-        shuffle=True,
+        shuffle=False,
         num_workers=args.num_workers,
         pin_memory=torch.cuda.is_available(),
         persistent_workers=args.num_workers > 0,
@@ -365,13 +365,9 @@ def train(args):
         T_max=args.epochs,
         eta_min=args.lr * 0.01,
     )
-    # Mixed precision training
-    use_amp = torch.cuda.is_available()
-    scaler = (
-        torch.amp.GradScaler("cuda")
-        if use_amp
-        else None
-    )
+    # AMP disabled for debugging NaN issues
+    use_amp = False
+    scaler = None
     # Resume from Checkpoint
     start_epoch = 0
     best_iou = 0.0
@@ -438,6 +434,7 @@ def train(args):
         pbar = tqdm(
             train_loader,
             desc=f"Epoch {epoch+1}/{args.epochs} [Train]",
+            mininterval=2.0,
         )
         for (images, labels, spatial_weights, dist_maps, eye_masks, eye_weights) in pbar:
             # Move to GPU
@@ -449,32 +446,22 @@ def train(args):
             eye_weights = eye_weights.to(device, non_blocking=True)
 
             optimizer.zero_grad()
-            with torch.amp.autocast("cuda", enabled=use_amp):
-                outputs = model(images)
-                (loss, ce_loss, dice_loss, surface_loss, boundary_loss) = criterion(
-                    outputs,
-                    labels,
-                    spatial_weights,
-                    dist_maps,
-                    alpha,
-                    eye_weights,
-                )
-            if use_amp:
-                scaler.scale(loss).backward()
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(
-                    model.parameters(),
-                    max_norm=1.0,
-                )
-                scaler.step(optimizer)
-                scaler.update()
-            else:
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    model.parameters(),
-                    max_norm=1.0,
-                )
-                optimizer.step()
+            outputs = model(images)
+            (loss, ce_loss, dice_loss, surface_loss, boundary_loss) = criterion(
+                outputs,
+                labels,
+                spatial_weights,
+                dist_maps,
+                alpha,
+                eye_weight=eye_weights,
+                eye_mask=eye_masks,
+            )
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(
+                model.parameters(),
+                max_norm=1.0,
+            )
+            optimizer.step()
             train_loss += loss.detach()
             train_ce_loss += ce_loss.detach()
             train_dice_loss += dice_loss.detach()
@@ -484,7 +471,6 @@ def train(args):
             inter, uni = compute_iou_tensors(preds, labels)
             train_intersection += inter
             train_union += uni
-            pbar.set_postfix({"alpha": f"{alpha:.3f}"})
         n_train_batches = len(train_loader)
         # Validation Phase
         model.eval()
@@ -499,6 +485,7 @@ def train(args):
             pbar = tqdm(
                 valid_loader,
                 desc=f"Epoch {epoch+1}/{args.epochs} [Valid]",
+                mininterval=2.0,
             )
             for (images, labels, spatial_weights, dist_maps, eye_masks, eye_weights) in pbar:
                 # Move to GPU
@@ -509,16 +496,16 @@ def train(args):
                 eye_masks = eye_masks.to(device, non_blocking=True)
                 eye_weights = eye_weights.to(device, non_blocking=True)
 
-                with torch.amp.autocast("cuda", enabled=use_amp):
-                    outputs = model(images)
-                    (loss, ce_loss, dice_loss, surface_loss, boundary_loss) = criterion(
-                        outputs,
-                        labels,
-                        spatial_weights,
-                        dist_maps,
-                        alpha,
-                        eye_weights,
-                    )
+                outputs = model(images)
+                (loss, ce_loss, dice_loss, surface_loss, boundary_loss) = criterion(
+                    outputs,
+                    labels,
+                    spatial_weights,
+                    dist_maps,
+                    alpha,
+                    eye_weight=eye_weights,
+                    eye_mask=eye_masks,
+                )
                 valid_loss += loss.detach()
                 valid_ce_loss += ce_loss.detach()
                 valid_dice_loss += dice_loss.detach()

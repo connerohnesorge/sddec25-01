@@ -1466,17 +1466,23 @@ def train(
         focal_weight = (
             1 - probs
         ) ** gamma
-        return (
+        # Clamp dist_map to avoid NaN/Inf from data issues
+        dist_map_safe = dist_map.clamp(
+            min=0.0, max=1000.0
+        )
+        loss = (
             (
                 focal_weight
                 * probs
-                * dist_map
+                * dist_map_safe
             )
             .flatten(start_dim=2)
             .mean(dim=2)
             .mean(dim=1)
             .mean()
         )
+        # Clamp final loss to avoid NaN propagation
+        return loss.clamp(max=100.0)
 
     def boundary_dice_loss(
         probs: torch.Tensor,
@@ -1604,21 +1610,27 @@ def train(
             cardinality = (
                 probs_flat + target_flat
             ).sum(dim=2)
-            class_weights = 1.0 / (
-                target_flat.sum(dim=2)
-                ** 2
-            ).clamp(min=self.epsilon)
+            # Clamp class_weights to float16-safe max (~65504) to avoid overflow with AMP
+            class_weights = (
+                1.0
+                / (
+                    target_flat.sum(dim=2)
+                    ** 2
+                ).clamp(min=self.epsilon)
+            ).clamp(max=1000.0)
 
-            dice = (
+            numerator = (
                 2.0
                 * (
                     class_weights
                     * intersection
                 ).sum(dim=1)
-                / (
-                    class_weights
-                    * cardinality
-                ).sum(dim=1)
+            )
+            denominator = (
+                class_weights * cardinality
+            ).sum(dim=1)
+            dice = numerator / (
+                denominator + self.epsilon
             )
             dice_loss = (
                 1.0

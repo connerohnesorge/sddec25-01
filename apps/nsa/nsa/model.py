@@ -1413,6 +1413,7 @@ def focal_surface_loss(
     probs: torch.Tensor,
     dist_map: torch.Tensor,
     gamma: float = 2.0,
+    mask: torch.Tensor = None,
 ) -> torch.Tensor:
     """Surface loss with focal weighting for hard boundary pixels.
 
@@ -1420,22 +1421,34 @@ def focal_surface_loss(
         probs: Predicted probabilities (B, C, H, W)
         dist_map: Distance transform (B, 2, H, W)
         gamma: Focal weighting exponent
+        mask: Optional spatial weighting mask (B, H, W)
 
     Returns:
         Focal-weighted surface loss scalar
     """
     focal_weight = (1 - probs) ** gamma
-    return (
-        (
-            focal_weight
-            * probs
-            * dist_map
+    # Use absolute value to penalize wrong-side predictions, clamp to avoid NaN/Inf
+    dist_map_safe = dist_map.abs().clamp(
+        max=1000.0
+    )
+    loss_map = (
+        focal_weight
+        * probs
+        * dist_map_safe
+    )
+    if mask is not None:
+        loss_map = (
+            loss_map
+            * mask.unsqueeze(1)
         )
-        .flatten(start_dim=2)
+    loss = (
+        loss_map.flatten(start_dim=2)
         .mean(dim=2)
         .mean(dim=1)
         .mean()
     )
+    # Clamp final loss to avoid NaN propagation
+    return loss.clamp(max=100.0)
 
 
 def boundary_dice_loss(
@@ -1443,6 +1456,7 @@ def boundary_dice_loss(
     target: torch.Tensor,
     kernel_size: int = 3,
     epsilon: float = 1e-5,
+    mask_weight: torch.Tensor = None,
 ) -> torch.Tensor:
     """Dice loss computed only on boundary pixels.
 
@@ -1477,6 +1491,10 @@ def boundary_dice_loss(
     ).squeeze(
         1
     )  # (B, H, W)
+    if mask_weight is not None:
+        boundary = (
+            boundary * mask_weight
+        )
 
     # Compute Dice only on boundary pixels
     probs_pupil = probs[
@@ -1539,6 +1557,7 @@ class CombinedLoss(nn.Module):
         dist_map: torch.Tensor,
         alpha: float,
         eye_weight: torch.Tensor = None,
+        eye_mask: torch.Tensor = None,
     ) -> tuple:
         """
         Args:
@@ -1548,6 +1567,7 @@ class CombinedLoss(nn.Module):
             dist_map: Distance map for surface loss (B, 2, H, W)
             alpha: Balance between dice and surface loss
             eye_weight: Soft distance weighting from eye region (B, H, W)
+            eye_mask: Eye region mask (B, H, W)
         Returns:
             (total_loss, ce_loss, dice_loss, surface_loss, boundary_loss)
         """
@@ -1555,6 +1575,13 @@ class CombinedLoss(nn.Module):
         log_probs = F.log_softmax(
             logits, dim=1
         )
+        mask_weight = None
+        if eye_mask is not None:
+            mask_weight = (
+                0.1
+                + 0.9
+                * eye_mask.float()
+            )
 
         # Weighted Cross Entropy
         ce_loss = self.nll(
@@ -1568,6 +1595,11 @@ class CombinedLoss(nn.Module):
             weight_factor = (
                 weight_factor
                 * eye_weight
+            )
+        if mask_weight is not None:
+            weight_factor = (
+                weight_factor
+                * mask_weight
             )
         weighted_ce = (
             ce_loss * weight_factor
@@ -1590,26 +1622,52 @@ class CombinedLoss(nn.Module):
             )
         )
 
-        intersection = (
-            probs_flat * target_flat
-        ).sum(dim=2)
-        cardinality = (
-            probs_flat + target_flat
-        ).sum(dim=2)
-        class_weights = 1.0 / (
-            target_flat.sum(dim=2) ** 2
-        ).clamp(min=self.epsilon)
+        if mask_weight is not None:
+            mask_flat = (
+                mask_weight.flatten(
+                    start_dim=1
+                )
+                .unsqueeze(1)
+            )
+            intersection = (
+                probs_flat
+                * target_flat
+                * mask_flat
+            ).sum(dim=2)
+            cardinality = (
+                (
+                    probs_flat
+                    + target_flat
+                )
+                * mask_flat
+            ).sum(dim=2)
+        else:
+            intersection = (
+                probs_flat * target_flat
+            ).sum(dim=2)
+            cardinality = (
+                probs_flat + target_flat
+            ).sum(dim=2)
+        # Clamp class_weights to float16-safe max (~65504) to avoid overflow with AMP
+        class_weights = (
+            1.0
+            / (
+                target_flat.sum(dim=2) ** 2
+            ).clamp(min=self.epsilon)
+        ).clamp(max=1000.0)
 
-        dice = (
+        numerator = (
             2.0
             * (
                 class_weights
                 * intersection
             ).sum(dim=1)
-            / (
-                class_weights
-                * cardinality
-            ).sum(dim=1)
+        )
+        denominator = (
+            class_weights * cardinality
+        ).sum(dim=1)
+        dice = numerator / (
+            denominator + self.epsilon
         )
         dice_loss = (
             1.0
@@ -1624,6 +1682,7 @@ class CombinedLoss(nn.Module):
                 probs,
                 dist_map,
                 gamma=self.focal_gamma,
+                mask=None,
             )
         )
 
@@ -1633,6 +1692,7 @@ class CombinedLoss(nn.Module):
             target,
             kernel_size=self.boundary_kernel_size,
             epsilon=self.epsilon,
+            mask_weight=mask_weight,
         )
 
         # Total loss with updated weighting
